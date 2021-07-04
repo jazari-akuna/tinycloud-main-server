@@ -9,6 +9,7 @@ services:
   nextcloud:
     image: nextcloud:apache
     restart: always
+    hostname: nextcloud
     links: 
       - nc_db
       - redis
