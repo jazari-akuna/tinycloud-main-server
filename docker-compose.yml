@@ -1,33 +1,29 @@
 version: '3'
 
-networks:
-  default:
-    external:
-      name: tinycloud-main
-
 services:
-  proxy:
-    restart: always
+   app:
+    container_name: nginx
     image: 'jc21/nginx-proxy-manager:latest'
+    restart: always
     ports:
       - '80:80'
       - '81:81'
       - '443:443'
     environment:
-      DB_MYSQL_HOST: "db"
+      DB_MYSQL_HOST: 'db'
       DB_MYSQL_PORT: 3306
-      DB_MYSQL_USER: "npm"
-      DB_MYSQL_PASSWORD: "npm"
-      DB_MYSQL_NAME: "npm"
+      DB_MYSQL_USER: 'npm'
+      DB_MYSQL_PASSWORD: 'npm'
+      DB_MYSQL_NAME: 'npm'
     volumes:
       - npm_data:/data
       - letsencrypt:/etc/letsencrypt
-    depends_on:
-      - 'rp_db'
-
-  rp_db:
-    restart: always
+    depends_on: 
+      - db
+   db:
+    container_name: maria_for_nginx
     image: 'yobasystems/alpine-mariadb:latest'
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: 'npm'
       MYSQL_DATABASE: 'npm'
@@ -40,3 +36,8 @@ volumes:
   rp_db:
   npm_data:
   letsencrypt:
+  
+networks:
+  default:
+    external:
+      name: tinycloud-main
