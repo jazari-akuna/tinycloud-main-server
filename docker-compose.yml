@@ -1,14 +1,9 @@
 version: '3'
 
 networks:
-  proxy:
-    driver: bridge
-    internal: true
-  nextcloud:
-    driver: bridge
-    internal: true
-  internet:
-    driver: bridge
+  default:
+    external:
+      name: tinycloud-main
 
 services:
   proxy:
@@ -25,12 +20,8 @@ services:
       DB_MYSQL_PASSWORD: "npm"
       DB_MYSQL_NAME: "npm"
     volumes:
-      - ./npm_data:/data
-      - ./letsencrypt:/etc/letsencrypt
-    networks:
-      - internet
-      - proxy
-      - nextcloud
+      - npm_data:/data
+      - letsencrypt:/etc/letsencrypt
     depends_on:
       - 'rp_db'
 
@@ -43,51 +34,9 @@ services:
       MYSQL_USER: 'npm'
       MYSQL_PASSWORD: 'npm'
     volumes:
-      - ./rp_db:/var/lib/mysql
-    networks:
-      - proxy
+      - rp_db:/var/lib/mysql
 
-  nextcloud:
-    image: nextcloud:apache
-    restart: always
-    links: 
-      - nc_db
-      - redis
-    volumes:
-      - ./nextcloud/apps:/var/www/html/apps
-      - ./nextcloud/config:/var/www/html/config
-      - ./nextcloud/data:/var/www/html/data
-      - /ssdpool:/ssdpool # local external storage
-    networks:
-      - nextcloud
-
-  nc_db:
-    image: mariadb
-    restart: always
-    volumes:
-      - ./nc_db:/var/lib/mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PW}
-      - MYSQL_DATABASE=nextcloud
-      - MYSQL_USER=nextcloud
-      - MYSQL_PASSWORD=${MYSQL_USER_PW}
-    networks:
-      - nextcloud
-
-  redis:
-    restart: always
-    image: redis
-    networks:
-      - nextcloud
-
-  collabora:
-    restart: always
-    image: collabora/code
-    expose:
-      - 9980
-    cap_add:
-      - MKNOD
-    environment:
-      - domain=${DOMAIN}
-    networks:
-      - nextcloud
+volumes:
+  rp_db:
+  npm_data:
+  letsencrypt:
