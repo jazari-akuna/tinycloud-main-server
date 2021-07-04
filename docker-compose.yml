@@ -39,7 +39,7 @@ services:
       MYSQL_USER: 'npm'
       MYSQL_PASSWORD: 'npm'
     volumes:
-      - ./rp-db:/var/lib/mysql
+      - ./rp_db:/var/lib/mysql
     networks:
       - no-internet
 
@@ -54,10 +54,6 @@ services:
       - ./nextcloud/config:/var/www/html/config
       - ./nextcloud/data:/var/www/html/data
       - /ssdpool:/ssdpool # local external storage
-    environment:
-      - VIRTUAL_HOST=${DOMAIN}
-      - LETSENCRYPT_HOST=${DOMAIN}
-      - LETSENCRYPT_EMAIL=${EMAIL}
     networks:
       - no-internet
 
