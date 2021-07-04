@@ -5,6 +5,7 @@ services:
     container_name: nginx
     image: 'jc21/nginx-proxy-manager:latest'
     restart: always
+    hostname: reverse-proxy
     ports:
       - '80:80'
       - '81:81'
