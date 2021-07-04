@@ -27,7 +27,7 @@ services:
 
   rp_db:
     restart: always
-    image: 'jc21/mariadb-aria:latest'
+    image: 'yobasystems/alpine-mariadb:latest'
     environment:
       MYSQL_ROOT_PASSWORD: 'npm'
       MYSQL_DATABASE: 'npm'
