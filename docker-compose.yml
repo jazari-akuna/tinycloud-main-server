@@ -1,7 +1,10 @@
 version: '3'
 
 networks:
-  no-internet:
+  proxy:
+    driver: bridge
+    internal: true
+  nextcloud:
     driver: bridge
     internal: true
   internet:
@@ -25,8 +28,9 @@ services:
       - ./npm_data:/data
       - ./letsencrypt:/etc/letsencrypt
     networks:
-      - no-internet
       - internet
+      - proxy
+      - nextcloud
     depends_on:
       - 'rp_db'
 
@@ -41,7 +45,7 @@ services:
     volumes:
       - ./rp_db:/var/lib/mysql
     networks:
-      - no-internet
+      - proxy
 
   nextcloud:
     image: nextcloud:apache
@@ -55,7 +59,7 @@ services:
       - ./nextcloud/data:/var/www/html/data
       - /ssdpool:/ssdpool # local external storage
     networks:
-      - no-internet
+      - nextcloud
 
   nc_db:
     image: mariadb
@@ -68,13 +72,13 @@ services:
       - MYSQL_USER=nextcloud
       - MYSQL_PASSWORD=${MYSQL_USER_PW}
     networks:
-      - no-internet
+      - nextcloud
 
   redis:
     restart: always
     image: redis
     networks:
-      - no-internet
+      - nextcloud
 
   collabora:
     restart: always
@@ -86,4 +90,4 @@ services:
     environment:
       - domain=${DOMAIN}
     networks:
-      - no-internet
+      - nextcloud
