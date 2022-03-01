@@ -3,7 +3,7 @@ services:
   web:
     image: 'gitlab/gitlab-ee:latest'
     restart: always
-    hostname: 'git.numbers-labs.com'
+    hostname: 'gitlab'
     volumes:
       - 'gl_config:/etc/gitlab'
       - 'gl_logs:/var/log/gitlab'
