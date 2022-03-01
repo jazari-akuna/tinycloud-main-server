@@ -14,3 +14,9 @@ volumes:
   gl_config:
   gl_logs:
   gl_data:
+
+networks:
+  default:
+    external:
+      name: tinycloud-main
+      
