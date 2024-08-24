@@ -67,7 +67,7 @@ services:
         profiles:
             - redis
         env_file:
-            - stack.env
+            - ../stack.env
         expose:
             - ${INVENTREE_CACHE_PORT:-6379}
         restart: always
@@ -84,7 +84,7 @@ services:
         depends_on:
             - inventree-db
         env_file:
-            - stack.env
+            - ../stack.env
         volumes:
             # Data volume must map to /home/inventree/data
             - ${INVENTREE_EXT_VOLUME}:/home/inventree/data:z
@@ -99,7 +99,7 @@ services:
         depends_on:
             - inventree-server
         env_file:
-            - stack.env
+            - ../stack.env
         volumes:
             # Data volume must map to /home/inventree/data
             - ${INVENTREE_EXT_VOLUME}:/home/inventree/data:z
@@ -118,7 +118,7 @@ services:
             - ${INVENTREE_WEB_PORT:-80}:80
             - 443:443
         env_file:
-            - stack.env
+            - ../stack.env
         volumes:
             - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
             - ${INVENTREE_EXT_VOLUME}/static:/var/www/static:z
