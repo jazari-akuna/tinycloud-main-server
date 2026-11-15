@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="csrf" content="{{CSRF}}">
+<title>Paraphernalia Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='6' width='24' height='8' rx='2' fill='%232a6f97'/%3E%3Crect x='4' y='18' width='24' height='8' rx='2' fill='%2378a9c6'/%3E%3Ccircle cx='9' cy='10' r='1.6' fill='%23fff'/%3E%3Ccircle cx='9' cy='22' r='1.6' fill='%23fff'/%3E%3C/svg%3E">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="ident">
+      <h1 id="hostname">paraphernalia</h1>
+      <p id="subtitle" class="muted">Loading…</p>
+    </div>
+    <nav class="top-actions">
+      <span class="muted small">Signed in as {{USER}}</span>
+      <a class="btn ghost" href="https://auth.raph.io/logout">Sign out</a>
+    </nav>
+  </header>
+
+  <section aria-label="Server health" class="meters" id="meters"></section>
+  <div class="chips" id="chips"></div>
+
+  <section class="block">
+    <div class="block-head">
+      <h2>Services</h2>
+      <button class="btn ghost small" id="toggle-hidden" type="button" hidden></button>
+    </div>
+    <div class="tiles" id="services"></div>
+  </section>
+
+  <section class="block">
+    <div class="block-head">
+      <h2>Your links</h2>
+      <button class="btn small" id="add-link" type="button">Add a link</button>
+    </div>
+    <form class="editor" id="link-form" hidden>
+      <input type="hidden" id="link-id">
+      <label>Name <input id="link-name" maxlength="60" placeholder="Router"></label>
+      <label>Address <input id="link-url" maxlength="500" placeholder="https://192.168.1.1" required></label>
+      <label class="wide">Note <input id="link-desc" maxlength="120" placeholder="What it's for (optional)"></label>
+      <div class="editor-actions">
+        <button class="btn" type="submit" id="link-save">Save link</button>
+        <button class="btn ghost" type="button" id="link-cancel">Cancel</button>
+        <button class="btn danger ghost" type="button" id="link-delete" hidden>Remove</button>
+      </div>
+      <p class="form-error" id="link-error" hidden></p>
+    </form>
+    <div class="tiles" id="links"></div>
+  </section>
+
+  <section class="block">
+    <h2>Apps</h2>
+    <div class="apps" id="apps"></div>
+  </section>
+
+  <section class="block">
+    <h2>Containers</h2>
+    <div class="table-wrap"><table id="containers"><thead><tr><th>Name</th><th>State</th><th>Up</th><th class="num">CPU</th><th class="num">Memory</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <footer class="muted small" id="footer"></footer>
+</div>
+
+<dialog id="svc-dialog">
+  <form method="dialog" class="editor" id="svc-form">
+    <h3 id="svc-title">Edit service</h3>
+    <label>Name <input id="svc-name" maxlength="60"></label>
+    <label>Description <input id="svc-desc" maxlength="120"></label>
+    <label class="check"><input type="checkbox" id="svc-hidden"> Hide from the list</label>
+    <div class="editor-actions">
+      <button class="btn" value="save" id="svc-save">Save</button>
+      <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn ghost" value="reset" id="svc-reset">Back to default</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>

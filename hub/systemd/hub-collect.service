@@ -1,0 +1,12 @@
+[Unit]
+Description=Gather server and app figures for hub.raph.io
+After=docker.service
+
+[Service]
+Type=oneshot
+Environment=HUB_DATA=/home/sagan/hub/data
+ExecStart=/usr/bin/python3 /home/sagan/tinycloud-main-server/hub/collect.py
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+TimeoutStartSec=120

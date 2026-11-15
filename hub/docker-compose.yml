@@ -1,0 +1,21 @@
+services:
+  hub:
+    build: .
+    container_name: hub
+    restart: unless-stopped
+    environment:
+      HUB_DATA: /data
+      AUTHELIA_URL: http://authelia:9091
+      PUBLIC_URL: https://hub.raph.io
+      PORTAL_URL: https://auth.raph.io
+    volumes:
+      - ${HUB_DATA:-/home/sagan/hub/data}:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    networks: [tinycloud-main]
+networks:
+  tinycloud-main:
+    external: true
