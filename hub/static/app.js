@@ -95,6 +95,16 @@ function renderMaintenance(m) {
   for (const a of asks.reverse()) $("#chips").prepend(el("span", { class: "chip warn", text: a }));
 }
 
+function renderAfterRestart(r) {
+  if (!r) return;
+  const when = new Date(r.when).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const ok = r.passed;
+  const text = ok ? `Last restart ${when}: ${r.repair && r.repair !== "not needed" ? "fixed afterwards, all checks pass" : "all checks pass"}`
+    : `Last restart ${when}: ${r.failed.length} check${r.failed.length > 1 ? "s" : ""} failing` + (r.repair.startsWith("needs you") ? " (" + r.repair.replace(/^needs you: /, "") + ")" : "");
+  $("#chips").prepend(el("span", { class: "chip " + (ok ? "good" : "warn"), text,
+    title: (r.failed || []).map((f) => "Failing: " + f.check + (f.detail ? " (" + f.detail + ")" : "")).join("\n") || "Log on the server: " + r.log }));
+}
+
 function serviceTile(s) {
   const status = !s.enabled ? "Switched off in the proxy" : s.up ? `Answering · ${s.ms} ms` : s.code ? `Not answering (error ${s.code})` : "Not answering";
   return el("div", { class: "tile" + (s.hidden ? " off" : "") },
@@ -192,7 +202,7 @@ async function load() {
   // People who aren't administrators see their apps and the shared links only.
   for (const id of ["#meters", "#chips", "#apps-block", "#containers-block"]) $(id).hidden = !DATA.admin;
   $("#add-link").hidden = !DATA.admin;
-  if (DATA.admin) { renderHost(DATA.host, DATA.updates); renderMaintenance(DATA.maintenance); }
+  if (DATA.admin) { renderHost(DATA.host, DATA.updates); renderMaintenance(DATA.maintenance); renderAfterRestart(DATA.after_restart); }
   renderServices(DATA.services || []);
   renderLinks(DATA.links || []);
   if (DATA.admin) { renderApps(DATA.apps || {}); renderContainers(DATA.containers); }

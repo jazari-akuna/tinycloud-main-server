@@ -1,0 +1,8 @@
+[Unit]
+Description=Check the server 10 minutes after every restart
+
+[Timer]
+OnBootSec=10min
+
+[Install]
+WantedBy=timers.target

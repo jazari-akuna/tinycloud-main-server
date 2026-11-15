@@ -1,0 +1,10 @@
+[Unit]
+Description=Health check, fixes and repair after the server restarts
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/sagan/tinycloud-main-server/ops/after-restart.sh
+TimeoutStartSec=2h
+Nice=10

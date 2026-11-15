@@ -1,5 +1,6 @@
 #!/bin/bash
-# Weekly update for the server. Runs as root from weekly-update.timer (Sundays 04:00 Shenzhen time).
+# Weekly update for the server. Runs as root from weekly-update.timer (Sundays 05:20 Shenzhen time,
+# just after the 05:00 restart window, so a restart never undoes or hides what this run did).
 #   1. health check before (so problems that were already there are known)
 #   2. backups: databases, sign-in data, hub data (last 4 weeks kept)
 #   3. updates: every Docker app to its newest image, Nextcloud's apps, Claude Code
@@ -99,51 +100,12 @@ sudo -u sagan -H bash -lc 'timeout 300 claude update' 2>&1 | tail -1
 
 docker image prune -f >/dev/null
 
-# ---------------------------------------------------------------- 4. after, and repair
-say "health check after updating"
+# ---------------------------------------------------------------- 4. after: check, fix, repair
+say "checking after the update"
 sleep 60
-python3 "$REPO/ops/health.py" --json "$RUN/health-after.json" > "$RUN/health-after.txt"
+"$REPO/ops/check-and-repair.sh" "$RUN" "The weekly update just ran. Updated: ${UPDATED[*]:-nothing}. Full log: $RUN/update.log"
 HEALTH=$?
-grep FAIL "$RUN/health-after.txt" || echo "all passed"
-
-REPAIR="not needed"
-STATE=/var/lib/weekly-update; mkdir -p $STATE
-if [ $HEALTH -ne 0 ]; then
-  say "simple fixes first (restarts, reloads)"
-  python3 "$REPO/ops/self_repair.py" "$RUN/health-after.json" | tee "$RUN/self-repair.txt"
-  sleep 45
-  python3 "$REPO/ops/health.py" --json "$RUN/health-final.json" > "$RUN/health-final.txt"; HEALTH=$?
-  if [ $HEALTH -eq 0 ]; then
-    REPAIR="fixed automatically with a restart or reload; Claude wasn't needed"
-  else
-    FAILSET=$(python3 -c 'import json,sys;print("\n".join(sorted(f["check"] for f in json.load(open(sys.argv[1]))["failed"])))' "$RUN/health-final.json")
-    if [ -f $STATE/claude-could-not-fix.txt ] && [ "$(cat $STATE/claude-could-not-fix.txt)" = "$FAILSET" ]; then
-      REPAIR="needs you: Claude already tried these same failures last time and couldn't fix them"
-    elif [ "$CLAUDE_READY" != yes ]; then
-      REPAIR="needs you: $CLAUDE_READY"
-    else
-      say "asking Claude to repair"
-      {
-        cat "$REPO/ops/REPAIR.md"
-        echo; echo "## This week's run ($DAY)"
-        echo "Updated: ${UPDATED[*]:-nothing}"
-        echo; echo "Failing BEFORE the update (may be older problems):"; grep FAIL "$RUN/health-before.txt" || echo "(none)"
-        echo; echo "Still failing AFTER the update and the automatic restarts:"; grep FAIL "$RUN/health-final.txt"
-        echo; echo "Automatic fixes already tried:"; cat "$RUN/self-repair.txt"
-        echo; echo "Full log: $RUN/update.log. Re-run checks with: sudo python3 $REPO/ops/health.py"
-      } > "$RUN/repair-brief.md"
-      chmod 644 "$RUN/repair-brief.md"
-      sudo -u sagan -H bash -lc "cd $REPO && timeout 45m claude -p \"\$(cat $RUN/repair-brief.md)\" --model opus --effort medium --dangerously-skip-permissions --output-format text" > "$RUN/repair.txt" 2>&1
-      python3 "$REPO/ops/health.py" --json "$RUN/health-final.json" > "$RUN/health-final.txt"; HEALTH=$?
-      if [ $HEALTH -eq 0 ]; then
-        REPAIR="repaired by Claude: all checks pass again"; rm -f $STATE/claude-could-not-fix.txt
-      else
-        REPAIR="needs you: Claude tried, but some checks still fail"; printf %s "$FAILSET" > $STATE/claude-could-not-fix.txt
-      fi
-    fi
-  fi
-  grep FAIL "$RUN/health-final.txt" || echo "all passed after repair"
-fi
+REPAIR=$(cat "$RUN/repair-status.txt")
 
 # ---------------------------------------------------------------- 5. result for the hub
 python3 - "$RUN" "$HEALTH" "$REPAIR" "${UPDATED[*]:-}" "$(printf '%s\n' "${NOTES[@]:-}")" <<'PY'

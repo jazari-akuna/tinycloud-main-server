@@ -1,8 +1,8 @@
 [Unit]
-Description=Weekly update of the server's apps (Sundays 04:00 Shenzhen time, Saturday evening in Switzerland)
+Description=Weekly update (Sundays 05:20 Shenzhen time, just after the 05:00 restart window; Saturday evening in Switzerland)
 
 [Timer]
-OnCalendar=Sun *-*-* 04:00:00 Asia/Shanghai
+OnCalendar=Sun *-*-* 05:20:00 Asia/Shanghai
 Persistent=true
 
 [Install]

@@ -1,12 +1,12 @@
 # Weekly update
 
-Every Sunday at 04:00 Shenzhen time, Saturday 21:00/22:00 in Switzerland (`weekly-update.timer`), `weekly-update.sh`:
+Every Sunday at 05:20 Shenzhen time, just after the 05:00 restart window (Saturday 22:20/23:20 in Switzerland, `weekly-update.timer`), `weekly-update.sh`:
 
 1. runs `health.py` (containers, every site in `sso/apps.yml`, sign-in and proxy settings, storage, firewall),
 2. backs up the databases, sign-in data and hub data to `/root/container-backups/weekly/<date>` (4 weeks kept),
 3. updates every Docker app to its newest image (Authelia only if the new version accepts the current settings),
    Portainer, Nextcloud's apps, and Claude Code,
-4. runs `health.py` again. If something fails:
+4. runs `check-and-repair.sh`: `health.py` again, and if something fails:
    - `self_repair.py` tries simple fixes first (start or restart the app, finish a Nextcloud upgrade,
      switch maintenance mode off, reload the proxy, restart failed services), then the checks run again;
    - only if something still fails, Claude (Opus, medium effort, as user sagan) gets `REPAIR.md` and the
@@ -21,3 +21,5 @@ Run it by hand: `sudo systemctl start weekly-update.service`, then `journalctl -
 Checks only: `sudo python3 ops/health.py`.
 
 When an update needs a restart, `reboot-if-required.timer` restarts the server at 05:00 Shenzhen time (22:00 or 23:00 in Switzerland), the hour that suits both. The server's clock stays on UTC.
+
+After every restart, `after-restart.timer` runs `after-restart.sh` ten minutes after boot: the same `check-and-repair.sh` (health check, simple fixes, then Claude only if needed). Its result shows on the hub too (`/home/sagan/hub/data/after-restart.json`).
