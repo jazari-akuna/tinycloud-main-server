@@ -2,8 +2,11 @@
 """hub: manage the links on https://hub.raph.io from a terminal or an agent.
 
   hub links                          list your links
-  hub add NAME URL [NOTE]            add a link
-  hub edit ID [--name N] [--url U] [--note T]
+  hub add NAME URL [NOTE] [--icon LOGO]
+  hub edit ID [--name N] [--url U] [--note T] [--icon LOGO]
+                                     LOGO: an image file (square PNG, SVG or WebP, at least 64x64 px,
+                                     up to 256 KB), an image address, a dashboard-icons name such as
+                                     home-assistant (https://dashboardicons.com), or "none" to remove it
   hub rm ID                          remove a link
   hub services                       list the server's sites (from the proxy)
   hub rename KEY NAME [NOTE]         rename a site, e.g. hub rename c.raph.io Cloud
@@ -16,7 +19,9 @@
 The API token is read from $HUB_TOKEN or ~/.config/hub/token. $HUB_URL defaults to https://hub.raph.io.
 Add --json to any listing for machine-readable output.
 """
+import base64
 import datetime as dt
+import mimetypes
 import hashlib
 import json
 import os
@@ -60,11 +65,22 @@ def opts(args):
     out, rest = {}, []
     it = iter(args)
     for a in it:
-        if a in ("--name", "--url", "--note"):
+        if a in ("--name", "--url", "--note", "--icon"):
             out[{"--note": "description"}.get(a, a[2:])] = next(it, "")
         else:
             rest.append(a)
     return out, rest
+
+
+def icon_value(v):
+    """A local image file becomes a data: URI; anything else is sent as given."""
+    if v and os.path.isfile(os.path.expanduser(v)):
+        path = os.path.expanduser(v)
+        if os.path.getsize(path) > 256 * 1024:
+            sys.exit("hub: the logo is larger than 256 KB")
+        mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
+        return "data:%s;base64,%s" % (mime, base64.b64encode(open(path, "rb").read()).decode())
+    return v
 
 
 def tokens_file():
@@ -95,10 +111,16 @@ def main(argv):
         for l in links if not as_json else []:
             print(f"{l['id']}  {l['name']:<24} {l['url']}" + (f"  ({l['description']})" if l.get("description") else ""))
     elif cmd == "add" and len(args) >= 2:
-        r = call("POST", "/links", {"name": args[0], "url": args[1], "description": " ".join(args[2:])})
+        o, rest = opts(args)
+        body = {"name": rest[0], "url": rest[1], "description": " ".join(rest[2:])}
+        if "icon" in o:
+            body["icon"] = icon_value(o["icon"])
+        r = call("POST", "/links", body)
         print(json.dumps(r["link"]) if as_json else f"Added {r['link']['name']} ({r['link']['id']})")
     elif cmd == "edit" and args:
         o, rest = opts(args[1:])
+        if "icon" in o:
+            o["icon"] = icon_value(o["icon"])
         r = call("POST", "/links/" + args[0], o)
         print(f"Saved {r['link']['name']}")
     elif cmd == "rm" and args:

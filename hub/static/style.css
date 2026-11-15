@@ -130,3 +130,10 @@ td.num, th.num { text-align: right; }
 footer { border-top: 1px solid var(--line); padding-top: 14px; }
 @media (max-width: 560px) { .editor { grid-template-columns: 1fr; } .figs { grid-template-columns: 1fr 1fr; } }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } .tile:hover { transform: none; } }
+
+.logo-field { grid-column: 1 / -1; display: flex; gap: 14px; align-items: flex-start; }
+.logo-preview { width: 42px; height: 42px; flex: none; border-radius: 9px; background: var(--logo-bg) center / 28px 28px no-repeat; border: 1px dashed var(--line); }
+.logo-preview.has { border-style: solid; }
+.logo-inputs { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+.editor input[type=file] { font: 13px var(--body); color: var(--muted); }
+.hint { margin: 0; font-size: 12.5px; color: var(--muted); }

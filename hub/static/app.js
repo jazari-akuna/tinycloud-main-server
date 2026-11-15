@@ -103,7 +103,7 @@ function linkTile(l) {
   let host = "";
   try { host = new URL(l.url).host; } catch (e) { host = l.url; }
   return el("div", { class: "tile" },
-    badge(l.name),
+    badge(l.name, l.icon ? "/link-icons/" + l.icon : null),
     el("div", {},
       el("a", { class: "t-name", href: l.url, target: "_blank", rel: "noopener", text: l.name }),
       l.description ? el("div", { class: "t-desc", text: l.description }) : null,
@@ -194,9 +194,34 @@ function openLinkForm(l) {
   $("#link-url").value = l ? l.url : "";
   $("#link-desc").value = l ? l.description || "" : "";
   $("#link-delete").hidden = !l;
+  $("#link-icon-file").value = "";
+  $("#link-icon-text").value = "";
+  removeIcon = false;
+  $("#link-icon-remove").hidden = !(l && l.icon);
+  setPreview(l && l.icon ? "/link-icons/" + l.icon : null);
   $("#link-save").textContent = l ? "Save changes" : "Save link";
   $("#link-error").hidden = true;
   $("#link-name").focus();
+}
+
+let removeIcon = false;
+const MAX_ICON = 256 * 1024;
+
+function setPreview(src) {
+  const p = $("#link-icon-preview");
+  p.classList.toggle("has", !!src);
+  p.style.backgroundImage = src ? `url("${src}")` : "";
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    if (file.size > MAX_ICON) return reject(new Error("That logo is larger than 256 KB. Use a smaller PNG or an SVG."));
+    if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type)) return reject(new Error("The logo must be a PNG, JPEG, WebP or SVG image."));
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error("Couldn't read that file."));
+    r.readAsDataURL(file);
+  });
 }
 
 function editService(s) {
@@ -222,6 +247,17 @@ function editService(s) {
 document.addEventListener("DOMContentLoaded", () => {
   $("#add-link").addEventListener("click", () => openLinkForm(null));
   $("#link-cancel").addEventListener("click", () => { $("#link-form").hidden = true; });
+  $("#link-icon-file").addEventListener("change", async (ev) => {
+    const f = ev.target.files[0];
+    $("#link-error").hidden = true;
+    if (!f) return;
+    try { setPreview(await readFile(f)); $("#link-icon-text").value = ""; }
+    catch (e) { ev.target.value = ""; $("#link-error").textContent = e.message; $("#link-error").hidden = false; }
+  });
+  $("#link-icon-remove").addEventListener("click", () => {
+    removeIcon = true; setPreview(null); $("#link-icon-file").value = ""; $("#link-icon-text").value = "";
+    $("#link-icon-remove").hidden = true;
+  });
   $("#toggle-hidden").addEventListener("click", () => { showHidden = !showHidden; renderServices(DATA.services || []); });
   $("#link-delete").addEventListener("click", async () => {
     const id = $("#link-id").value;
@@ -237,6 +273,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const id = $("#link-id").value;
     const body = { name: $("#link-name").value, url: $("#link-url").value.trim(), description: $("#link-desc").value };
     try {
+      const file = $("#link-icon-file").files[0];
+      const text = $("#link-icon-text").value.trim();
+      if (file) body.icon = await readFile(file);
+      else if (text) body.icon = text;
+      else if (removeIcon) body.icon = "none";
       await post(id ? "/api/links/" + id : "/api/links", body);
       $("#link-form").hidden = true;
       await load();

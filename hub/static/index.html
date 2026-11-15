@@ -45,6 +45,15 @@
       <label>Name <input id="link-name" maxlength="60" placeholder="Router"></label>
       <label>Address <input id="link-url" maxlength="500" placeholder="https://192.168.1.1" required></label>
       <label class="wide">Note <input id="link-desc" maxlength="120" placeholder="What it's for (optional)"></label>
+      <div class="wide logo-field">
+        <span class="logo-preview" id="link-icon-preview" aria-hidden="true"></span>
+        <div class="logo-inputs">
+          <label>Logo (optional) <input type="file" id="link-icon-file" accept="image/png,image/svg+xml,image/webp,image/jpeg"></label>
+          <label>or a logo name or image address <input id="link-icon-text" maxlength="500" placeholder="home-assistant  or  https://example.com/logo.png"></label>
+          <p class="hint">Square PNG, SVG or WebP, at least 64 × 64 px (128 × 128 looks sharpest), up to 256 KB. Names come from the <a href="https://dashboardicons.com" target="_blank" rel="noopener">dashboard icons</a> collection.</p>
+          <button class="btn ghost small" type="button" id="link-icon-remove" hidden>Remove the logo</button>
+        </div>
+      </div>
       <div class="editor-actions">
         <button class="btn" type="submit" id="link-save">Save link</button>
         <button class="btn ghost" type="button" id="link-cancel">Cancel</button>

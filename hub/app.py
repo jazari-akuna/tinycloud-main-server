@@ -4,6 +4,7 @@ Stats come from /data/stats.json (written by collect.py on the host).
 Links and service names you edit are kept in /data/links.json.
 Every request is checked with Authelia using the visitor's own session cookie.
 """
+import base64
 import hashlib
 import hmac
 import http.client
@@ -14,7 +15,9 @@ import secrets
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DATA = os.environ.get("HUB_DATA", "/data")
@@ -27,6 +30,11 @@ LOCK = threading.Lock()
 COOKIE_RE = re.compile(r"authelia_session=([^\s;,\"]+)")
 URL_RE = re.compile(r"^https?://[^\s<>\"']+$")
 CACHE = {}
+ICON_DIR = os.path.join(DATA, "icons")
+MAX_ICON = 256 * 1024
+LINK_ICON_RE = re.compile(r"^/link-icons/[0-9a-f]{8}\.(png|jpg|webp|svg)$")
+DASHBOARD_ICONS = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/{fmt}/{name}.{fmt}"
+ICON_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml"}
 
 # Friendly names for the proxy's sites; anything can be renamed from the page.
 DEFAULTS = {
@@ -41,16 +49,13 @@ DEFAULTS = {
     "auth.raph.io": ("Sign-in", "Single sign-on portal"),
     "office.raph.io": ("Office server", "Collabora, used by Nextcloud"),
     "hub.raph.io": ("Hub", "This page"),
-    "git.raph.io": ("GitLab", "Code hosting"),
-    "i.raph.io": ("InvenTree", "Inventory"),
     "rth.raph.io": ("Camera tunnel", "Rathole control port"),
     "mscamftp.raph.io": ("Camera FTP", "Switched off"),
 }
 ICONS = {
     "c.raph.io": "nextcloud", "p.raph.io": "portainer", "rp.raph.io": "nginx-proxy-manager", "n8n-alex.raph.io": "n8n",
     "s.raph.io": "yourls", "stream.raph.io": "jellyfin", "makercam.raph.io": "camera", "sso.raph.io": "authelia",
-    "auth.raph.io": "authelia", "office.raph.io": "collabora-online", "hub.raph.io": "hub", "git.raph.io": "gitlab",
-    "i.raph.io": "inventree", "rth.raph.io": "camera", "mscamftp.raph.io": "camera",
+    "auth.raph.io": "authelia", "office.raph.io": "collabora-online", "hub.raph.io": "hub", "rth.raph.io": "camera", "mscamftp.raph.io": "camera",
 }
 ICON_RE = re.compile(r"^/icons/[a-z0-9-]+\.svg$")
 HIDDEN_BY_DEFAULT = {"hub.raph.io", "office.raph.io", "rth.raph.io", "mscamftp.raph.io", "auth.raph.io"}
@@ -119,6 +124,84 @@ def clean(s, n):
     return str(s or "").strip()[:n]
 
 
+def sniff(b):
+    """Returns the image type from the file's first bytes, or None."""
+    if b.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if b[:3] == b"\xff\xd8\xff":
+        return "jpg"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "webp"
+    head = b[:1024].lstrip().lower()
+    if head.startswith((b"<svg", b"<?xml", b"<!--")) and b"<svg" in b[:4096].lower():
+        if re.search(rb"<script|\son[a-z]+\s*=|javascript:", b, re.I):
+            raise ValueError("That SVG contains scripts. Use a plain SVG or a PNG.")
+        return "svg"
+    return None
+
+
+def fetch(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "hub (logo fetch)"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return r.read(MAX_ICON + 1)
+
+
+def load_icon(spec):
+    """A logo from a data: URI (uploaded file), an image address, or a dashboard-icons name. Returns (bytes, ext)."""
+    spec = str(spec).strip()
+    if spec.startswith("data:"):
+        head, _, payload = spec.partition(",")
+        if ";base64" not in head:
+            raise ValueError("Unreadable image.")
+        b = base64.b64decode(payload)
+    elif URL_RE.match(spec):
+        try:
+            b = fetch(spec)
+        except Exception:
+            raise ValueError("Couldn't download the logo from that address.")
+    elif re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", spec):
+        b = None
+        for fmt in ("svg", "png"):
+            try:
+                b = fetch(DASHBOARD_ICONS.format(fmt=fmt, name=spec))
+                break
+            except Exception:
+                continue
+        if b is None:
+            raise ValueError("No logo called '%s' in the dashboard-icons set." % spec)
+    else:
+        raise ValueError("Give an image file, an image address, or a logo name such as home-assistant.")
+    if len(b) > MAX_ICON:
+        raise ValueError("The logo is larger than 256 KB.")
+    ext = sniff(b)
+    if not ext:
+        raise ValueError("The logo must be a PNG, JPEG, WebP or SVG image.")
+    return b, ext
+
+
+def remove_icon(link_id):
+    for ext in ICON_TYPES:
+        try:
+            os.remove(os.path.join(ICON_DIR, "%s.%s" % (link_id, ext)))
+        except FileNotFoundError:
+            pass
+
+
+def store_icon(link, icon):
+    remove_icon(link["id"])
+    if icon is None:
+        link.pop("icon", None)
+        return
+    b, ext = icon
+    os.makedirs(ICON_DIR, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=ICON_DIR, prefix=".icon.")
+    with os.fdopen(fd, "wb") as f:
+        f.write(b)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, os.path.join(ICON_DIR, "%s.%s" % (link["id"], ext)))
+    link["icon"] = "%s.%s?v=%d" % (link["id"], ext, int(time.time()))
+
+
 def services_view(stats, prefs):
     out = []
     for h in stats.get("services") or []:
@@ -142,6 +225,12 @@ def services_view(stats, prefs):
 
 def change(parts, body):
     """Applies one change to links.json. parts is the path after /api (or /api/v1). Returns (status, json)."""
+    icon, icon_given = None, parts[:1] == ["links"] and "icon" in body
+    if icon_given and str(body.get("icon") or "").strip().lower() not in ("", "none"):
+        try:
+            icon = load_icon(body["icon"])  # downloads happen outside the lock
+        except ValueError as e:
+            return 400, {"error": str(e)}
     with LOCK:
         data = read_json("links.json", {"links": [], "services": {}})
         data.setdefault("links", [])
@@ -154,6 +243,8 @@ def change(parts, body):
             link = {"id": secrets.token_hex(4), "name": clean(body.get("name"), 60) or urllib.parse.urlparse(url).netloc,
                     "url": url, "description": clean(body.get("description"), 120)}
             data["links"].append(link)
+            if icon_given:
+                store_icon(link, icon)
             result["link"] = link
         elif len(parts) == 2 and parts[0] == "links":
             link = next((l for l in data["links"] if l["id"] == parts[1]), None)
@@ -161,12 +252,15 @@ def change(parts, body):
                 return 404, {"error": "No link with that id."}
             if body.get("delete"):
                 data["links"].remove(link)
+                remove_icon(link["id"])
             else:
                 url = clean(body.get("url", link["url"]), 500)
                 if not URL_RE.match(url):
                     return 400, {"error": "The address must start with http:// or https://"}
                 link.update(name=clean(body.get("name", link["name"]), 60) or link["name"], url=url,
                             description=clean(body.get("description", link.get("description", "")), 120))
+                if icon_given:
+                    store_icon(link, icon)
                 result["link"] = link
         elif len(parts) == 2 and parts[0] == "services":
             key = clean(parts[1], 100)
@@ -233,6 +327,20 @@ class Handler(BaseHTTPRequestHandler):
             html = open(os.path.join(STATIC, "index.html")).read()
             html = html.replace("{{CSRF}}", csrf_token(self.headers.get("Cookie"))).replace("{{USER}}", me)
             return self.send(200, html, "text/html; charset=utf-8")
+        if LINK_ICON_RE.match(path):
+            f = os.path.join(ICON_DIR, path.rsplit("/", 1)[1])
+            if not os.path.exists(f):
+                return self.send(404, "", "text/plain")
+            # sandboxed so an SVG opened on its own can't run anything
+            self.send_response(200)
+            body = open(f, "rb").read()
+            self.send_header("Content-Type", ICON_TYPES[f.rsplit(".", 1)[1]])
+            self.send_header("Cache-Control", "max-age=604800")
+            self.send_header("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
         if ICON_RE.match(path) and os.path.exists(os.path.join(STATIC, path[1:])):
             return self.send(200, open(os.path.join(STATIC, path[1:]), "rb").read(), "image/svg+xml",
                              extra=[("Cache-Control", "max-age=86400")])
@@ -262,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/v1/"):
             if not api_user(self.headers.get("Authorization")):
                 return self.send(401, json.dumps({"error": "Missing or unknown API token."}))
-            n = min(int(self.headers.get("Content-Length") or 0), 10000)
+            n = min(int(self.headers.get("Content-Length") or 0), 400000)
             try:
                 body = json.loads(self.rfile.read(n) or b"{}")
             except json.JSONDecodeError:
@@ -277,7 +385,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(403, json.dumps({"error": "That request did not come from this page."}))
         if not hmac.compare_digest(self.headers.get("X-CSRF", ""), csrf_token(self.headers.get("Cookie"))):
             return self.send(403, json.dumps({"error": "This page has expired. Reload it and try again."}))
-        n = min(int(self.headers.get("Content-Length") or 0), 10000)
+        n = min(int(self.headers.get("Content-Length") or 0), 400000)
         try:
             body = json.loads(self.rfile.read(n) or b"{}")
         except json.JSONDecodeError:
