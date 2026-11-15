@@ -57,8 +57,8 @@ function renderHost(h, updates) {
   const rootUsed = h.root_total - h.root_free;
   m.append(
     meter("Load", h.load[0].toFixed(2), `/ ${h.cpus} cores`, (h.load[0] / h.cpus) * 100, `5 min ${h.load[1].toFixed(2)} · 15 min ${h.load[2].toFixed(2)}`),
-    meter("Memory", fmtBytes(memUsed), `of ${fmtBytes(h.mem_total)}`, (memUsed / h.mem_total) * 100,
-      h.swap_total ? `Swap ${fmtBytes(h.swap_total - h.swap_free)} used` : null),
+    meter("Memory", fmtBytes(memUsed), "used", (memUsed / h.mem_total) * 100,
+      `of ${fmtBytes(h.mem_total)}` + (h.swap_total ? ` · swap ${fmtBytes(h.swap_total - h.swap_free)}` : "")),
   );
   if (h.zfs) {
     const total = h.zfs.used + h.zfs.avail;
