@@ -23,7 +23,7 @@ services:
       - db
    db:
     container_name: maria_for_nginx
-    image: 'yobasystems/alpine-mariadb:latest'
+    image: 'yobasystems/alpine-mariadb:11.4'
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: 'npm'
