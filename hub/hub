@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""hub: manage the links on https://hub.raph.io from a terminal or an agent.
+
+  hub links                          list your links
+  hub add NAME URL [NOTE]            add a link
+  hub edit ID [--name N] [--url U] [--note T]
+  hub rm ID                          remove a link
+  hub services                       list the server's sites (from the proxy)
+  hub rename KEY NAME [NOTE]         rename a site, e.g. hub rename c.raph.io Cloud
+  hub hide KEY | hub show KEY | hub reset KEY
+  hub stats                          the server's figures as JSON
+
+  hub token new LABEL                on the server: make an API token (shown once)
+  hub token list | hub token revoke ID
+
+The API token is read from $HUB_TOKEN or ~/.config/hub/token. $HUB_URL defaults to https://hub.raph.io.
+Add --json to any listing for machine-readable output.
+"""
+import datetime as dt
+import hashlib
+import json
+import os
+import secrets
+import sys
+import urllib.error
+import urllib.request
+
+URL = os.environ.get("HUB_URL", "https://hub.raph.io").rstrip("/")
+TOKENS = os.path.join(os.environ.get("HUB_DATA", "/home/sagan/hub/data"), "api-tokens.json")
+
+
+def token():
+    t = os.environ.get("HUB_TOKEN")
+    if not t:
+        p = os.path.expanduser("~/.config/hub/token")
+        if os.path.exists(p):
+            t = open(p).read().strip()
+    if not t:
+        sys.exit("No API token. Set HUB_TOKEN or put one in ~/.config/hub/token (make one on the server with: hub token new NAME).")
+    return t
+
+
+def call(method, path, body=None):
+    req = urllib.request.Request(URL + "/api/v1" + path, method=method,
+                                 data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Authorization": "Bearer " + token(), "Content-Type": "application/json",
+                                          "User-Agent": "hub-cli"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.load(e).get("error")
+        except Exception:
+            msg = e.reason
+        sys.exit(f"hub: {msg}")
+
+
+def opts(args):
+    out, rest = {}, []
+    it = iter(args)
+    for a in it:
+        if a in ("--name", "--url", "--note"):
+            out[{"--note": "description"}.get(a, a[2:])] = next(it, "")
+        else:
+            rest.append(a)
+    return out, rest
+
+
+def tokens_file():
+    try:
+        return json.load(open(TOKENS))
+    except FileNotFoundError:
+        return {"tokens": []}
+
+
+def save_tokens(d):
+    tmp = TOKENS + ".tmp"
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644), "w") as f:
+        json.dump(d, f, indent=2)
+    os.replace(tmp, TOKENS)
+
+
+def main(argv):
+    as_json = "--json" in argv
+    argv = [a for a in argv if a != "--json"]
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return
+    cmd, args = argv[0], argv[1:]
+    if cmd == "links":
+        links = call("GET", "/links")["links"]
+        if as_json:
+            print(json.dumps(links, indent=2, ensure_ascii=False))
+        for l in links if not as_json else []:
+            print(f"{l['id']}  {l['name']:<24} {l['url']}" + (f"  ({l['description']})" if l.get("description") else ""))
+    elif cmd == "add" and len(args) >= 2:
+        r = call("POST", "/links", {"name": args[0], "url": args[1], "description": " ".join(args[2:])})
+        print(json.dumps(r["link"]) if as_json else f"Added {r['link']['name']} ({r['link']['id']})")
+    elif cmd == "edit" and args:
+        o, rest = opts(args[1:])
+        r = call("POST", "/links/" + args[0], o)
+        print(f"Saved {r['link']['name']}")
+    elif cmd == "rm" and args:
+        call("POST", "/links/" + args[0], {"delete": True})
+        print("Removed")
+    elif cmd == "services":
+        svcs = call("GET", "/services")["services"]
+        if as_json:
+            print(json.dumps(svcs, indent=2, ensure_ascii=False))
+        for s in svcs if not as_json else []:
+            state = "up  " if s["up"] else "DOWN"
+            print(f"{state} {s['key']:<22} {s['name']:<18} {'(hidden) ' if s['hidden'] else ''}{s.get('description') or ''}")
+    elif cmd == "rename" and len(args) >= 2:
+        body = {"name": args[1]}
+        if len(args) > 2:
+            body["description"] = " ".join(args[2:])
+        call("POST", "/services/" + args[0], body)
+        print("Renamed")
+    elif cmd in ("hide", "show") and args:
+        call("POST", "/services/" + args[0], {"hidden": cmd == "hide"})
+        print("Hidden" if cmd == "hide" else "Shown")
+    elif cmd == "reset" and args:
+        call("POST", "/services/" + args[0], {"reset": True})
+        print("Back to default")
+    elif cmd == "stats":
+        print(json.dumps(call("GET", "/stats"), indent=2))
+    elif cmd == "token" and args:
+        d = tokens_file()
+        if args[0] == "new" and len(args) > 1:
+            t = "hub_" + secrets.token_urlsafe(32)
+            d["tokens"].append({"id": secrets.token_hex(3), "label": " ".join(args[1:]),
+                                "sha256": hashlib.sha256(t.encode()).hexdigest(),
+                                "created": dt.date.today().isoformat()})
+            save_tokens(d)
+            print(t)
+            print("Shown once. Keep it in ~/.config/hub/token (chmod 600) wherever the hub command or an agent runs.", file=sys.stderr)
+        elif args[0] == "list":
+            for t in d["tokens"]:
+                print(f"{t['id']}  {t['created']}  {t['label']}")
+        elif args[0] == "revoke" and len(args) > 1:
+            d["tokens"] = [t for t in d["tokens"] if t["id"] != args[1]]
+            save_tokens(d)
+            print("Revoked")
+        else:
+            sys.exit("Usage: hub token new LABEL | hub token list | hub token revoke ID")
+    else:
+        sys.exit(__doc__.strip())
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

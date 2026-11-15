@@ -76,6 +76,17 @@ def check_session(cookie_header, path, method, ip):
     return who
 
 
+def api_user(auth_header):
+    """Checks an 'Authorization: Bearer <token>' header against /data/api-tokens.json (hashes only)."""
+    if not (auth_header or "").startswith("Bearer "):
+        return None
+    digest = hashlib.sha256(auth_header[7:].strip().encode()).hexdigest()
+    for t in read_json("api-tokens.json", {"tokens": []}).get("tokens", []):
+        if hmac.compare_digest(t.get("sha256", ""), digest):
+            return "token:" + t.get("label", t.get("id", "?"))
+    return None
+
+
 def csrf_token(cookie_header):
     m = COOKIE_RE.search(cookie_header or "")
     return hmac.new(SECRET, (m.group(1) if m else "").encode(), hashlib.sha256).hexdigest()
@@ -120,6 +131,49 @@ def services_view(stats, prefs):
     return out
 
 
+def change(parts, body):
+    """Applies one change to links.json. parts is the path after /api (or /api/v1). Returns (status, json)."""
+    with LOCK:
+        data = read_json("links.json", {"links": [], "services": {}})
+        data.setdefault("links", [])
+        data.setdefault("services", {})
+        result = {"ok": True}
+        if parts == ["links"]:
+            url = clean(body.get("url"), 500)
+            if not URL_RE.match(url):
+                return 400, {"error": "The address must start with http:// or https://"}
+            link = {"id": secrets.token_hex(4), "name": clean(body.get("name"), 60) or urllib.parse.urlparse(url).netloc,
+                    "url": url, "description": clean(body.get("description"), 120)}
+            data["links"].append(link)
+            result["link"] = link
+        elif len(parts) == 2 and parts[0] == "links":
+            link = next((l for l in data["links"] if l["id"] == parts[1]), None)
+            if not link:
+                return 404, {"error": "No link with that id."}
+            if body.get("delete"):
+                data["links"].remove(link)
+            else:
+                url = clean(body.get("url", link["url"]), 500)
+                if not URL_RE.match(url):
+                    return 400, {"error": "The address must start with http:// or https://"}
+                link.update(name=clean(body.get("name", link["name"]), 60) or link["name"], url=url,
+                            description=clean(body.get("description", link.get("description", "")), 120))
+                result["link"] = link
+        elif len(parts) == 2 and parts[0] == "services":
+            key = clean(parts[1], 100)
+            if body.get("reset"):
+                data["services"].pop(key, None)
+            else:
+                cur = data["services"].get(key, {})
+                data["services"][key] = {"name": clean(body.get("name", cur.get("name", "")), 60),
+                                         "description": clean(body.get("description", cur.get("description", "")), 120),
+                                         "hidden": bool(body.get("hidden", cur.get("hidden", False)))}
+        else:
+            return 404, {"error": "Not found"}
+        save_links(data)
+        return 200, result
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "hub"
 
@@ -151,6 +205,18 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/healthz":
             return self.send(200, "ok", "text/plain")
+        if path.startswith("/api/v1/"):
+            if not api_user(self.headers.get("Authorization")):
+                return self.send(401, json.dumps({"error": "Missing or unknown API token."}))
+            stats = read_json("stats.json", {})
+            links = read_json("links.json", {"links": [], "services": {}})
+            if path == "/api/v1/links":
+                return self.send(200, json.dumps({"links": links.get("links", [])}))
+            if path == "/api/v1/services":
+                return self.send(200, json.dumps({"services": services_view(stats, links.get("services", {}))}))
+            if path == "/api/v1/stats":
+                return self.send(200, json.dumps({k: v for k, v in stats.items() if not k.startswith("_")}))
+            return self.send(404, json.dumps({"error": "Not found"}))
         me = self.who()
         if not me:
             return self.send(302, "", extra=[("Location", PORTAL + "/?rd=" + urllib.parse.quote(PUBLIC_URL + self.path, safe=""))])
@@ -180,6 +246,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send(404, json.dumps({"error": "Not found"}))
 
     def do_POST(self):
+        path = self.path.split("?")[0]
+        if path.startswith("/api/v1/"):
+            if not api_user(self.headers.get("Authorization")):
+                return self.send(401, json.dumps({"error": "Missing or unknown API token."}))
+            n = min(int(self.headers.get("Content-Length") or 0), 10000)
+            try:
+                body = json.loads(self.rfile.read(n) or b"{}")
+            except json.JSONDecodeError:
+                return self.send(400, json.dumps({"error": "Body must be JSON."}))
+            code, result = change(path.strip("/").split("/")[2:], body)
+            return self.send(code, json.dumps(result))
         me = self.who()
         if not me:
             return self.send(401, json.dumps({"error": "Please sign in again."}))
@@ -194,38 +271,8 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self.send(400, json.dumps({"error": "Unreadable request."}))
         parts = self.path.split("?")[0].strip("/").split("/")
-        with LOCK:
-            data = read_json("links.json", {"links": [], "services": {}})
-            data.setdefault("links", [])
-            data.setdefault("services", {})
-            if parts == ["api", "links"]:
-                url = clean(body.get("url"), 500)
-                if not URL_RE.match(url):
-                    return self.send(400, json.dumps({"error": "The address must start with http:// or https://"}))
-                data["links"].append({"id": secrets.token_hex(4), "name": clean(body.get("name"), 60) or urllib.parse.urlparse(url).netloc,
-                                      "url": url, "description": clean(body.get("description"), 120)})
-            elif len(parts) == 3 and parts[:2] == ["api", "links"]:
-                link = next((l for l in data["links"] if l["id"] == parts[2]), None)
-                if not link:
-                    return self.send(404, json.dumps({"error": "That link is gone already."}))
-                if body.get("delete"):
-                    data["links"].remove(link)
-                else:
-                    url = clean(body.get("url"), 500)
-                    if not URL_RE.match(url):
-                        return self.send(400, json.dumps({"error": "The address must start with http:// or https://"}))
-                    link.update(name=clean(body.get("name"), 60) or link["name"], url=url, description=clean(body.get("description"), 120))
-            elif len(parts) == 3 and parts[:2] == ["api", "services"]:
-                key = clean(parts[2], 100)
-                if body.get("reset"):
-                    data["services"].pop(key, None)
-                else:
-                    data["services"][key] = {"name": clean(body.get("name"), 60), "description": clean(body.get("description"), 120),
-                                             "hidden": bool(body.get("hidden"))}
-            else:
-                return self.send(404, json.dumps({"error": "Not found"}))
-            save_links(data)
-        self.send(200, json.dumps({"ok": True}))
+        code, result = change(parts[1:], body)
+        self.send(code, json.dumps(result))
 
 
 if __name__ == "__main__":

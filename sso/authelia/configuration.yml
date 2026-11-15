@@ -33,6 +33,10 @@ access_control:
     - domain: ['p.raph.io', 'portainer.numbers-labs.com']
       resources: ['^/api/(stacks/)?webhooks/.*']
       policy: 'bypass'
+    # The hub's API checks its own tokens (agents and the hub command).
+    - domain: 'hub.raph.io'
+      resources: ['^/api/v1/.*']
+      policy: 'bypass'
     - domain: ['*.raph.io', '*.numbers-labs.com']
       subject: 'group:admins'
       policy: 'one_factor'

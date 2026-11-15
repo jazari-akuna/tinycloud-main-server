@@ -258,7 +258,10 @@ def main():
         futs = {k: ex.submit(safe, JOBS[k]) for k in due}
         for k, f in futs.items():
             out[k] = f.result()
-            stamps[k] = now
+            # A part that failed tries again in 5 minutes rather than waiting its full interval.
+            failed = isinstance(out[k], dict) and "error" in out[k]
+            interval = SCHEDULE[k][0] if watched else SCHEDULE[k][1]
+            stamps[k] = now - interval + 300 if failed else now
     out["_refreshed"] = stamps
     out["generated"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     tmp = os.path.join(DATA, ".stats.json.tmp")
