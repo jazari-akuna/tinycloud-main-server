@@ -50,7 +50,7 @@ apps:
 
   - key: hub
     name: Hub
-    description: This page
+    description: Links to every app, in one place
     domains: [hub.raph.io]
     icon: hub
     access: app

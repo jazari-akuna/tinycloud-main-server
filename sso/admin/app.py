@@ -146,15 +146,16 @@ def render(me, tok, notice=None):
         rows.append("</div><p class=mut>Administrators can open every app even when its switch is off.</p></fieldset>")
         return "".join(rows)
 
-    def pwfields():
-        return ("<label>New password (leave empty to keep it)</label><input type=password name=password autocomplete=new-password>"
+    def pwfields(new=False):
+        return ("<label>%s</label><input type=password name=password autocomplete=new-password>" % (
+                    "Password (at least 8 characters)" if new else "New password (leave empty to keep the current one)") +
                 "<label><input type=checkbox name=generate> Make one up for me, and show it to me once</label>")
     h.append("<details class=card><summary>Add someone</summary><form method=post action=/add>%s"
              "<label>Username (lowercase letters, digits, . _ -)</label><input type=text name=username required pattern='[a-z0-9][a-z0-9._-]{0,31}'>"
              "<label>Name</label><input type=text name=displayname required>"
              "<label>Email</label><input type=email name=email required>"
              "%s%s"
-             "<button class=p>Add person</button></form></details>" % (t, access_fields([]), pwfields()))
+             "<button class=p>Add person</button></form></details>" % (t, access_fields([]), pwfields(new=True)))
     for name, u in sorted(users.items()):
         u = u or {}
         on = not u.get("disabled")
