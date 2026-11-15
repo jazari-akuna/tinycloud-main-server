@@ -30,7 +30,7 @@ if ! sudo -u sagan -H claude auth status 2>/dev/null | grep -q '"loggedIn": true
   CLAUDE_READY="Claude is signed out on the server, so it can't repair anything. Sign it in with: ssh -t sagan@192.168.1.52 claude auth login"
 else
   USAGE=$(python3 "$REPO/ops/claude-usage.py" 2>/dev/null || echo unknown)
-  if [ "${USAGE%% *}" = high ]; then CLAUDE_READY="the Claude account is at 90% or more of a usage limit ($USAGE), so a repair would stall"; else CLAUDE_READY=yes; fi
+  if [ "${USAGE%% *}" = high ]; then CLAUDE_READY="Claude is at 90% or more of its usage limit with no extra usage left ($USAGE), so a repair would stall"; else CLAUDE_READY=yes; fi
 fi
 echo "$CLAUDE_READY"
 [ "$CLAUDE_READY" != yes ] && NOTES+=("$CLAUDE_READY")

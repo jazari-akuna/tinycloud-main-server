@@ -10,8 +10,8 @@ Every Sunday at 03:30 Swiss time (`weekly-update.timer`), `weekly-update.sh`:
    - `self_repair.py` tries simple fixes first (start or restart the app, finish a Nextcloud upgrade,
      switch maintenance mode off, reload the proxy, restart failed services), then the checks run again;
    - only if something still fails, Claude (Opus, medium effort, as user sagan) gets `REPAIR.md` and the
-     failing checks. It isn't called when it's signed out, when the account is at 90% or more of a usage
-     limit (`claude-usage.py`), or when it already failed on exactly the same checks the week before;
+     failing checks. It isn't called when it's signed out, when a usage limit is at 90% or more with no paid extra usage
+     left (`claude-usage.py`), or when it already failed on exactly the same checks the week before;
      those cases show on the hub as something for you to do.
    Whether Claude is signed in and has usage left is checked at the start of every run and shown on the hub.
 5. writes the result to the hub (`/home/sagan/hub/data/maintenance.json`) and the full log to

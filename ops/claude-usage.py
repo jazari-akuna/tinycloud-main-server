@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Prints "high ..." when sagan's Claude account is at 90% or more of a usage limit, "ok ..." otherwise,
-"unknown" when it can't tell (for example an API-key account, which has no such limits).
-Used by weekly-update.sh so a repair doesn't start only to stall on a limit."""
+"""Says whether a Claude repair on this server would stall on a usage limit.
+
+Prints "high ..." when a usage limit is at 90% or more and there is no paid extra usage
+left to carry on (extra usage off, or itself at 90% or more); "ok ..." otherwise;
+"unknown" when it can't tell. Used by weekly-update.sh before it calls Claude.
+"""
 import json
 import urllib.request
 
@@ -14,6 +17,15 @@ try:
 except Exception:
     print("unknown")
     raise SystemExit(0)
-used = {k: v.get("utilization") for k, v in data.items() if isinstance(v, dict) and v.get("utilization") is not None}
-worst = max(used.values(), default=0)
-print(("high" if worst >= 90 else "ok"), " ".join("%s=%s%%" % (k, round(v)) for k, v in used.items()))
+
+limits = {k: v.get("utilization") for k, v in data.items()
+          if isinstance(v, dict) and v.get("utilization") is not None}
+for lim in data.get("limits") or []:
+    if lim.get("is_active") and lim.get("percent") is not None:
+        limits[lim.get("kind", "limit")] = lim["percent"]
+worst = max(limits.values(), default=0)
+extra = data.get("extra_usage")  # percent of paid extra usage spent, None when it's off
+blocked = worst >= 90 and (extra is None or extra >= 90)
+detail = " ".join("%s=%s%%" % (k, round(v)) for k, v in sorted(limits.items()))
+detail += " extra_usage=%s" % ("off" if extra is None else "%s%%" % round(extra))
+print(("high " if blocked else "ok ") + detail)
