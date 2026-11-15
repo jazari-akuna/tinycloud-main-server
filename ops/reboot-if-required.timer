@@ -1,0 +1,8 @@
+[Unit]
+Description=Reboot after updates at 05:00 Shenzhen time (22:00 or 23:00 in Switzerland)
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 Asia/Shanghai
+
+[Install]
+WantedBy=timers.target

@@ -70,7 +70,7 @@ function renderHost(h, updates) {
   if (h.temp_c != null) m.append(meter("Temperature", h.temp_c.toFixed(0), "°C", null, "Warmest sensor"));
   const chips = [];
   if (updates != null) chips.push([updates ? `${updates} updates waiting` : "Up to date", updates ? "warn" : "good"]);
-  if (h.reboot_required) chips.push(["Restarts at midnight (Swiss time) for an update", "warn"]);
+  if (h.reboot_required) chips.push(["Restarts at 05:00 Shenzhen time for an update", "warn"]);
   chips.push([`${h.ssh_banned} addresses blocked from SSH`, ""]);
   chips.push([`Network since start: ↓ ${fmtBytes(h.net_rx)} ↑ ${fmtBytes(h.net_tx)}`, ""]);
   if (h.zfs && h.zfs.scrub) chips.push([`Last pool check: ${h.zfs.scrub.replace(/^scrub /, "").replace(/ with .*? on /, ", ")}`, ""]);

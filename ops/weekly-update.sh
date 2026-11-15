@@ -1,5 +1,5 @@
 #!/bin/bash
-# Weekly update for the server. Runs as root from weekly-update.timer (Sundays 03:30 Swiss time).
+# Weekly update for the server. Runs as root from weekly-update.timer (Sundays 04:00 Shenzhen time).
 #   1. health check before (so problems that were already there are known)
 #   2. backups: databases, sign-in data, hub data (last 4 weeks kept)
 #   3. updates: every Docker app to its newest image, Nextcloud's apps, Claude Code

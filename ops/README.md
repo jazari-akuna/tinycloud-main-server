@@ -1,6 +1,6 @@
 # Weekly update
 
-Every Sunday at 03:30 Swiss time (`weekly-update.timer`), `weekly-update.sh`:
+Every Sunday at 04:00 Shenzhen time, Saturday 21:00/22:00 in Switzerland (`weekly-update.timer`), `weekly-update.sh`:
 
 1. runs `health.py` (containers, every site in `sso/apps.yml`, sign-in and proxy settings, storage, firewall),
 2. backs up the databases, sign-in data and hub data to `/root/container-backups/weekly/<date>` (4 weeks kept),
@@ -19,3 +19,5 @@ Every Sunday at 03:30 Swiss time (`weekly-update.timer`), `weekly-update.sh`:
 
 Run it by hand: `sudo systemctl start weekly-update.service`, then `journalctl -u weekly-update -f`.
 Checks only: `sudo python3 ops/health.py`.
+
+When an update needs a restart, `reboot-if-required.timer` restarts the server at 05:00 Shenzhen time (22:00 or 23:00 in Switzerland), the hour that suits both. The server's clock stays on UTC.

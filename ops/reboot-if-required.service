@@ -1,0 +1,6 @@
+[Unit]
+Description=Reboot if a package update asked for it
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'if [ -f /run/reboot-required ]; then /usr/bin/systemctl reboot; fi'
