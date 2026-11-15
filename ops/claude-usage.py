@@ -28,6 +28,8 @@ worst = max(limits.values(), default=0)
 eu = data.get("extra_usage")
 if isinstance(eu, dict):
     extra = eu.get("utilization") if eu.get("is_enabled", True) else None
+    if extra is not None and eu.get("spend_limit_reached"):
+        extra = 100
 else:
     extra = eu
 blocked = worst >= 90 and (extra is None or extra >= 90)
