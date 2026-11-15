@@ -14,7 +14,8 @@ NEXTCLOUD = "nextcloud-nextcloud-1"
 def run(cmd, timeout=300):
     print("+ " + (cmd if isinstance(cmd, str) else " ".join(cmd)))
     try:
-        r = subprocess.run(cmd, shell=isinstance(cmd, str), capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(cmd, shell=isinstance(cmd, str), capture_output=True, text=True, timeout=timeout,
+                           stdin=subprocess.DEVNULL)
         out = (r.stdout + r.stderr).strip()
         if out:
             print("  " + out.splitlines()[-1][:200])

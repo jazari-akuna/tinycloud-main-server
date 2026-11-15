@@ -17,7 +17,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def sh(cmd, timeout=60):
     try:
-        r = subprocess.run(cmd, shell=isinstance(cmd, str), capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(cmd, shell=isinstance(cmd, str), capture_output=True, text=True, timeout=timeout,
+                           stdin=subprocess.DEVNULL)
         return r.returncode, (r.stdout + r.stderr).strip()
     except Exception as e:
         return 1, str(e)
