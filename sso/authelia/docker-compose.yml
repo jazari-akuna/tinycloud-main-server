@@ -1,0 +1,20 @@
+services:
+  authelia:
+    image: authelia/authelia:4.39
+    container_name: authelia
+    restart: unless-stopped
+    volumes:
+      - ./configuration.yml:/config/configuration.yml:ro
+      - ${AUTHELIA_DATA:-/home/sagan/authelia/data}:/data
+    environment:
+      TZ: 'Europe/Zurich'
+      X_AUTHELIA_CONFIG_FILTERS: 'template'
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE: '/data/secrets/jwt'
+      AUTHELIA_SESSION_SECRET_FILE: '/data/secrets/session'
+      AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE: '/data/secrets/storage'
+      AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE: '/data/secrets/hmac'
+
+networks:
+  default:
+    name: tinycloud-main
+    external: true

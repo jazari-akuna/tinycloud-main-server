@@ -1,0 +1,16 @@
+services:
+  sso-admin:
+    build: .
+    container_name: sso-admin
+    restart: unless-stopped
+    environment:
+      USERS_FILE: /data/users.yml
+      AUTHELIA_URL: http://authelia:9091
+      PUBLIC_URL: https://sso.raph.io
+      PORTAL_URL: https://auth.raph.io
+    volumes:
+      - /home/sagan/authelia/data:/data
+    networks: [tinycloud-main]
+networks:
+  tinycloud-main:
+    external: true

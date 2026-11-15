@@ -1,0 +1,23 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:10.11
+    container_name: jellyfin
+    hostname: jellyfin
+    restart: unless-stopped
+    volumes:
+      - jelly_config:/config
+      - jelly_cache:/cache
+      - "/ssdpool/cloud/Videos/Shared Videos:/media:ro"
+      - /ssdpool/cloud/Sound/Music:/music:ro
+    networks:
+      - tinycloud-main
+
+volumes:
+  jelly_config:
+    external: true
+  jelly_cache:
+    external: true
+
+networks:
+  tinycloud-main:
+    external: true

@@ -1,0 +1,10 @@
+[Unit]
+Description=Renew the proxy manager token weekly
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=7d
+Persistent=true
+
+[Install]
+WantedBy=timers.target
