@@ -19,12 +19,17 @@ except Exception:
     raise SystemExit(0)
 
 limits = {k: v.get("utilization") for k, v in data.items()
-          if isinstance(v, dict) and v.get("utilization") is not None}
+          if k != "extra_usage" and isinstance(v, dict) and v.get("utilization") is not None}
 for lim in data.get("limits") or []:
     if lim.get("is_active") and lim.get("percent") is not None:
         limits[lim.get("kind", "limit")] = lim["percent"]
 worst = max(limits.values(), default=0)
-extra = data.get("extra_usage")  # percent of paid extra usage spent, None when it's off
+# paid extra usage: percent of it spent, None when it's off
+eu = data.get("extra_usage")
+if isinstance(eu, dict):
+    extra = eu.get("utilization") if eu.get("is_enabled", True) else None
+else:
+    extra = eu
 blocked = worst >= 90 and (extra is None or extra >= 90)
 detail = " ".join("%s=%s%%" % (k, round(v)) for k, v in sorted(limits.items()))
 detail += " extra_usage=%s" % ("off" if extra is None else "%s%%" % round(extra))
