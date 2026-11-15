@@ -89,6 +89,10 @@ function renderMaintenance(m) {
     ...(m.failed || []).map((f) => "Failing: " + f.check + (f.detail ? " (" + f.detail + ")" : "")),
     m.repair && m.repair !== "not needed" ? "Repair: " + m.repair : "", ...(m.notes || [])].filter(Boolean).join("\n") || "Full log on the server: " + m.log });
   $("#chips").prepend(chip);
+  // anything that needs the owner gets its own visible line
+  const asks = [...(m.notes || [])];
+  if (m.repair && m.repair.startsWith("needs you") && !asks.some((a) => m.repair.includes(a))) asks.push(m.repair.replace(/^needs you: /, ""));
+  for (const a of asks.reverse()) $("#chips").prepend(el("span", { class: "chip warn", text: a }));
 }
 
 function serviceTile(s) {

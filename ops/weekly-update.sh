@@ -25,6 +25,16 @@ say() { echo "-- $*"; }
 say "health check before updating"
 python3 "$REPO/ops/health.py" --json "$RUN/health-before.json" > "$RUN/health-before.txt"; cat "$RUN/health-before.txt" | grep FAIL || echo "all passed"
 
+say "Claude ready to repair?"
+if ! sudo -u sagan -H claude auth status 2>/dev/null | grep -q '"loggedIn": true'; then
+  CLAUDE_READY="Claude is signed out on the server, so it can't repair anything. Sign it in with: ssh -t sagan@192.168.1.52 claude auth login"
+else
+  USAGE=$(python3 "$REPO/ops/claude-usage.py" 2>/dev/null || echo unknown)
+  if [ "${USAGE%% *}" = high ]; then CLAUDE_READY="the Claude account is at 90% or more of a usage limit ($USAGE), so a repair would stall"; else CLAUDE_READY=yes; fi
+fi
+echo "$CLAUDE_READY"
+[ "$CLAUDE_READY" != yes ] && NOTES+=("$CLAUDE_READY")
+
 # ---------------------------------------------------------------- 2. backups
 say "backups to $BACKUP"
 NCPW=$(docker exec -u www-data nextcloud-nextcloud-1 php occ config:system:get dbpassword 2>/dev/null)
@@ -97,28 +107,42 @@ HEALTH=$?
 grep FAIL "$RUN/health-after.txt" || echo "all passed"
 
 REPAIR="not needed"
+STATE=/var/lib/weekly-update; mkdir -p $STATE
 if [ $HEALTH -ne 0 ]; then
-  USAGE=$(python3 "$REPO/ops/claude-usage.py" 2>/dev/null || echo "unknown")
-  echo "Claude usage: $USAGE"
-  if [ "${USAGE%% *}" = "high" ]; then
-    REPAIR="skipped: the Claude account is at 90% or more of its usage limit"
+  say "simple fixes first (restarts, reloads)"
+  python3 "$REPO/ops/self_repair.py" "$RUN/health-after.json" | tee "$RUN/self-repair.txt"
+  sleep 45
+  python3 "$REPO/ops/health.py" --json "$RUN/health-final.json" > "$RUN/health-final.txt"; HEALTH=$?
+  if [ $HEALTH -eq 0 ]; then
+    REPAIR="fixed automatically with a restart or reload; Claude wasn't needed"
   else
-    say "asking Claude to repair"
-    {
-      cat "$REPO/ops/REPAIR.md"
-      echo; echo "## This week's run ($DAY)"
-      echo "Updated: ${UPDATED[*]:-nothing}"
-      echo; echo "Failing BEFORE the update (may be older problems):"; grep FAIL "$RUN/health-before.txt" || echo "(none)"
-      echo; echo "Failing AFTER the update:"; grep FAIL "$RUN/health-after.txt"
-      echo; echo "Full log: $RUN/update.log. Re-run checks with: sudo python3 $REPO/ops/health.py"
-    } > "$RUN/repair-brief.md"
-    chmod 644 "$RUN/repair-brief.md"
-    sudo -u sagan -H bash -lc "cd $REPO && timeout 45m claude -p \"\$(cat $RUN/repair-brief.md)\" --model opus --effort medium --dangerously-skip-permissions --output-format text" > "$RUN/repair.txt" 2>&1
-    python3 "$REPO/ops/health.py" --json "$RUN/health-final.json" > "$RUN/health-final.txt"
-    HEALTH=$?
-    if [ $HEALTH -eq 0 ]; then REPAIR="repaired: all checks pass again"; else REPAIR="attempted, some checks still fail"; fi
-    grep FAIL "$RUN/health-final.txt" || echo "all passed after repair"
+    FAILSET=$(python3 -c 'import json,sys;print("\n".join(sorted(f["check"] for f in json.load(open(sys.argv[1]))["failed"])))' "$RUN/health-final.json")
+    if [ -f $STATE/claude-could-not-fix.txt ] && [ "$(cat $STATE/claude-could-not-fix.txt)" = "$FAILSET" ]; then
+      REPAIR="needs you: Claude already tried these same failures last time and couldn't fix them"
+    elif [ "$CLAUDE_READY" != yes ]; then
+      REPAIR="needs you: $CLAUDE_READY"
+    else
+      say "asking Claude to repair"
+      {
+        cat "$REPO/ops/REPAIR.md"
+        echo; echo "## This week's run ($DAY)"
+        echo "Updated: ${UPDATED[*]:-nothing}"
+        echo; echo "Failing BEFORE the update (may be older problems):"; grep FAIL "$RUN/health-before.txt" || echo "(none)"
+        echo; echo "Still failing AFTER the update and the automatic restarts:"; grep FAIL "$RUN/health-final.txt"
+        echo; echo "Automatic fixes already tried:"; cat "$RUN/self-repair.txt"
+        echo; echo "Full log: $RUN/update.log. Re-run checks with: sudo python3 $REPO/ops/health.py"
+      } > "$RUN/repair-brief.md"
+      chmod 644 "$RUN/repair-brief.md"
+      sudo -u sagan -H bash -lc "cd $REPO && timeout 45m claude -p \"\$(cat $RUN/repair-brief.md)\" --model opus --effort medium --dangerously-skip-permissions --output-format text" > "$RUN/repair.txt" 2>&1
+      python3 "$REPO/ops/health.py" --json "$RUN/health-final.json" > "$RUN/health-final.txt"; HEALTH=$?
+      if [ $HEALTH -eq 0 ]; then
+        REPAIR="repaired by Claude: all checks pass again"; rm -f $STATE/claude-could-not-fix.txt
+      else
+        REPAIR="needs you: Claude tried, but some checks still fail"; printf %s "$FAILSET" > $STATE/claude-could-not-fix.txt
+      fi
+    fi
   fi
+  grep FAIL "$RUN/health-final.txt" || echo "all passed after repair"
 fi
 
 # ---------------------------------------------------------------- 5. result for the hub
