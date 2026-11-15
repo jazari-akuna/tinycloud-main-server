@@ -36,29 +36,24 @@ LINK_ICON_RE = re.compile(r"^/link-icons/[0-9a-f]{8}\.(png|jpg|webp|svg)$")
 DASHBOARD_ICONS = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/{fmt}/{name}.{fmt}"
 ICON_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml"}
 
-# Friendly names for the proxy's sites; anything can be renamed from the page.
-DEFAULTS = {
-    "c.raph.io": ("Nextcloud", "Files, calendar, contacts and office documents"),
-    "p.raph.io": ("Portainer", "Containers and stacks"),
-    "rp.raph.io": ("Proxy Manager", "Web addresses and certificates"),
-    "n8n-alex.raph.io": ("n8n", "Automations"),
-    "s.raph.io": ("Short links", "YOURLS link shortener"),
-    "stream.raph.io": ("Jellyfin", "Films, series and music"),
-    "makercam.raph.io": ("Camera", "Live camera view"),
-    "sso.raph.io": ("People", "Who can sign in"),
-    "auth.raph.io": ("Sign-in", "Single sign-on portal"),
-    "office.raph.io": ("Office server", "Collabora, used by Nextcloud"),
-    "hub.raph.io": ("Hub", "This page"),
-    "rth.raph.io": ("Camera tunnel", "Rathole control port"),
-    "mscamftp.raph.io": ("Camera FTP", "Switched off"),
-}
-ICONS = {
-    "c.raph.io": "nextcloud", "p.raph.io": "portainer", "rp.raph.io": "nginx-proxy-manager", "n8n-alex.raph.io": "n8n",
-    "s.raph.io": "yourls", "stream.raph.io": "jellyfin", "makercam.raph.io": "camera", "sso.raph.io": "authelia",
-    "auth.raph.io": "authelia", "office.raph.io": "collabora-online", "hub.raph.io": "hub", "rth.raph.io": "camera", "mscamftp.raph.io": "camera",
-}
+APPS_FILE = os.environ.get("APPS_FILE", "/app/apps.yml")
 ICON_RE = re.compile(r"^/icons/[a-z0-9-]+\.svg$")
-HIDDEN_BY_DEFAULT = {"hub.raph.io", "office.raph.io", "rth.raph.io", "mscamftp.raph.io", "auth.raph.io"}
+
+
+def apps():
+    """The shared app list (sso/apps.yml): names, logos, and who may open each app."""
+    import yaml
+    try:
+        with open(APPS_FILE) as f:
+            return yaml.safe_load(f)["apps"]
+    except Exception:
+        return []
+
+
+def can_open(app, groups):
+    if "admins" in groups or not app or app.get("access") == "open":
+        return True
+    return app.get("access") == "app" and ("app-" + app["key"]) in groups
 
 
 def check_session(cookie_header, path, method, ip):
@@ -81,8 +76,8 @@ def check_session(cookie_header, path, method, ip):
         c.close()
     except Exception:
         return None
-    ok = r.status == 200 and user and "admins" in [g.strip() for g in groups.split(",")]
-    who = user if ok else None
+    ok = r.status == 200 and user
+    who = (user, [g.strip() for g in groups.split(",") if g.strip()]) if ok else None
     if who:
         CACHE[key] = (who, time.time() + 20)
     return who
@@ -202,21 +197,25 @@ def store_icon(link, icon):
     link["icon"] = "%s.%s?v=%d" % (link["id"], ext, int(time.time()))
 
 
-def services_view(stats, prefs):
+def services_view(stats, prefs, groups=("admins",)):
+    by_domain = {d: a for a in apps() for d in a.get("domains", [])}
     out = []
     for h in stats.get("services") or []:
         if not isinstance(h, dict) or not h.get("domains"):
             continue
-        main = next((d for d in h["domains"] if d.endswith(".raph.io")), h["domains"][0])
-        name, desc = DEFAULTS.get(main, (main.split(".")[0].capitalize(), ""))
+        app = next((by_domain[d] for d in h["domains"] if d in by_domain), None)
+        if not can_open(app, groups):
+            continue
+        main = app["domains"][0] if app else next((d for d in h["domains"] if d.endswith(".raph.io")), h["domains"][0])
         p = prefs.get(main, {})
+        name = (app or {}).get("name") or main.split(".")[0].capitalize()
         out.append({
             "key": main, "url": "https://" + main + "/", "domain": main,
             "aliases": [d for d in h["domains"] if d != main],
-            "name": p.get("name") or name, "description": p.get("description", desc),
+            "name": p.get("name") or name, "description": p.get("description", (app or {}).get("description", "")),
             # Sites that are switched off or not answering stay out of the way until you unhide them.
-            "hidden": p.get("hidden", main in HIDDEN_BY_DEFAULT or not h.get("up") or not h.get("enabled", True)),
-            "icon": "/icons/%s.svg" % ICONS[main] if main in ICONS else None,
+            "hidden": p.get("hidden", bool((app or {}).get("hidden")) or not h.get("up") or not h.get("enabled", True)),
+            "icon": "/icons/%s.svg" % app["icon"] if app and app.get("icon") else None,
             "up": h.get("up"), "code": h.get("code"), "ms": h.get("ms"), "enabled": h.get("enabled", True),
         })
     out.sort(key=lambda s: s["name"].lower())
@@ -325,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(302, "", extra=[("Location", PORTAL + "/?rd=" + urllib.parse.quote(PUBLIC_URL + self.path, safe=""))])
         if path == "/":
             html = open(os.path.join(STATIC, "index.html")).read()
-            html = html.replace("{{CSRF}}", csrf_token(self.headers.get("Cookie"))).replace("{{USER}}", me)
+            html = html.replace("{{CSRF}}", csrf_token(self.headers.get("Cookie"))).replace("{{USER}}", me[0])
             return self.send(200, html, "text/html; charset=utf-8")
         if LINK_ICON_RE.match(path):
             f = os.path.join(ICON_DIR, path.rsplit("/", 1)[1])
@@ -355,18 +354,21 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             stats = read_json("stats.json", {})
             links = read_json("links.json", {"links": [], "services": {}})
+            admin = "admins" in me[1]
             return self.send(200, json.dumps({
-                "user": me, "generated": stats.get("generated"),
-                "host": stats.get("host"), "containers": stats.get("containers"),
-                "apps": {k: stats.get(k) for k in ("nextcloud", "jellyfin", "n8n", "yourls", "authelia", "proxy")},
-                "updates": (stats.get("updates") or {}).get("count"),
-                "services": services_view(stats, links.get("services", {})),
+                "user": me[0], "admin": admin, "generated": stats.get("generated"),
+                # server figures are for administrators; everyone sees the apps they can open and the shared links
+                "host": stats.get("host") if admin else None, "containers": stats.get("containers") if admin else None,
+                "apps": {k: stats.get(k) for k in ("nextcloud", "jellyfin", "n8n", "yourls", "authelia", "proxy")} if admin else {},
+                "updates": (stats.get("updates") or {}).get("count") if admin else None,
+                "services": services_view(stats, links.get("services", {}), me[1]),
                 "links": links.get("links", []),
             }))
         self.send(404, json.dumps({"error": "Not found"}))
 
     def do_POST(self):
         path = self.path.split("?")[0]
+
         if path.startswith("/api/v1/"):
             if not api_user(self.headers.get("Authorization")):
                 return self.send(401, json.dumps({"error": "Missing or unknown API token."}))
@@ -380,6 +382,8 @@ class Handler(BaseHTTPRequestHandler):
         me = self.who()
         if not me:
             return self.send(401, json.dumps({"error": "Please sign in again."}))
+        if "admins" not in me[1]:
+            return self.send(403, json.dumps({"error": "Only administrators can change the hub."}))
         origin = self.headers.get("Origin") or ""
         if urllib.parse.urlparse(origin).netloc != urllib.parse.urlparse(PUBLIC_URL).netloc:
             return self.send(403, json.dumps({"error": "That request did not come from this page."}))

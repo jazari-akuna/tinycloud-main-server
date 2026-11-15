@@ -10,6 +10,7 @@ services:
       PORTAL_URL: https://auth.raph.io
     volumes:
       - ${HUB_DATA:-/home/sagan/hub/data}:/data
+      - ../sso/apps.yml:/app/apps.yml:ro
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

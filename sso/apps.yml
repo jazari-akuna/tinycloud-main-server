@@ -1,0 +1,111 @@
+# The server's apps, in one place. Used by:
+#   - the hub (hub.raph.io): names, descriptions, logos, and which apps each person sees
+#   - the people page (sso.raph.io): one on/off switch per app for each person
+#   - Authelia: access rules are generated from this file (sso/authelia/render.py)
+#
+# access:
+#   app      anyone given this app on the people page can open it (group "app-<key>")
+#   admins   only administrators
+#   open     no sign-in needed (the app has its own protection)
+# paths: only these addresses need a sign-in (regular expressions); the rest of the site stays public.
+# hidden: listed in the hub only when "Show hidden" is on.
+apps:
+  - key: nextcloud
+    name: Nextcloud
+    description: Files, calendar, contacts and office documents
+    domains: [c.raph.io, cloud.numbers-labs.com, cloud.numberslabs.com]
+    icon: nextcloud
+    access: app
+    sign_in: openid      # Nextcloud asks Authelia itself
+
+  - key: jellyfin
+    name: Jellyfin
+    description: Films, series and music
+    domains: [stream.raph.io, stream.numbers-labs.com]
+    icon: jellyfin
+    access: app
+    sign_in: openid
+
+  - key: n8n
+    name: n8n
+    description: Automations (opens as the n8n owner)
+    domains: [n8n-alex.raph.io]
+    icon: n8n
+    access: app
+
+  - key: shortlinks
+    name: Short links
+    description: YOURLS link shortener
+    domains: [s.raph.io]
+    paths: ['^/admin([/?].*)?$']
+    icon: yourls
+    access: app
+
+  - key: camera
+    name: Camera
+    description: Live camera view
+    domains: [makercam.raph.io]
+    icon: camera
+    access: app
+
+  - key: hub
+    name: Hub
+    description: This page
+    domains: [hub.raph.io]
+    icon: hub
+    access: app
+    hidden: true
+
+  - key: portainer
+    name: Portainer
+    description: Containers and stacks
+    domains: [p.raph.io, portainer.numbers-labs.com]
+    icon: portainer
+    access: admins
+    sign_in: openid
+
+  - key: proxy
+    name: Proxy Manager
+    description: Web addresses and certificates
+    domains: [rp.raph.io, proxy.numbers-labs.com]
+    icon: nginx-proxy-manager
+    access: admins
+
+  - key: people
+    name: People
+    description: Who can sign in, and to what
+    domains: [sso.raph.io]
+    icon: authelia
+    access: admins
+
+  - key: office
+    name: Office server
+    description: Collabora, used by Nextcloud
+    domains: [office.raph.io]
+    icon: collabora-online
+    access: open
+    hidden: true
+
+  - key: signin
+    name: Sign-in
+    description: Single sign-on portal
+    domains: [auth.raph.io, auth.numbers-labs.com]
+    icon: authelia
+    access: open
+    hidden: true
+
+  - key: camera-tunnel
+    name: Camera tunnel
+    description: Rathole control port
+    domains: [rth.raph.io]
+    icon: camera
+    access: admins
+    hidden: true
+
+  - key: camera-ftp
+    name: Camera FTP
+    description: Switched off
+    domains: [mscamftp.raph.io]
+    icon: camera
+    access: admins
+    hidden: true

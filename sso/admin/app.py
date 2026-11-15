@@ -71,8 +71,33 @@ def make_password():
     return "#".join(r.choice(WORDS) for _ in range(3)) + "#%02d" % r.randrange(100)
 
 
-def parse_groups(s):
-    return sorted({g.strip() for g in re.split(r"[,\s]+", s or "") if g.strip()})
+APPS_FILE = os.environ.get("APPS_FILE", "/app/apps.yml")
+
+
+def grantable_apps():
+    """Apps that can be given to people one by one (from sso/apps.yml, shared with the hub)."""
+    with open(APPS_FILE) as f:
+        return [a for a in yaml.safe_load(f)["apps"] if a.get("access") == "app"]
+
+
+def admin_only_names():
+    with open(APPS_FILE) as f:
+        return [a["name"] for a in yaml.safe_load(f)["apps"] if a.get("access") == "admins" and not a.get("hidden")]
+
+
+def groups_from_form(fields, old_groups):
+    """Turns the switches into Authelia groups, keeping any other groups the person already had."""
+    keys = {a["key"] for a in grantable_apps()}
+    kept = [g for g in old_groups if g != "admins" and not (g.startswith("app-") and g[4:] in keys)]
+    new = (["admins"] if fields.get("admin") else []) + ["app-" + k for k in sorted(keys) if fields.get("app-" + k)]
+    return kept + new
+
+
+def access_summary(groups):
+    if "admins" in groups:
+        return "Everything (administrator)"
+    names = [a["name"] for a in grantable_apps() if "app-" + a["key"] in groups]
+    return ", ".join(names) if names else "Nothing yet"
 
 
 E_ = html.escape
@@ -88,6 +113,9 @@ button.p{background:var(--acc);color:#fff;border-color:var(--acc)}button.d{color
 .mut{color:var(--mut);font-size:.9rem}.tag{display:inline-block;font-size:.75rem;border:1px solid var(--line);border-radius:99px;padding:0 8px;margin-right:4px}
 .off{color:var(--bad)}.msg{border-left:4px solid var(--ok);padding:8px 12px;background:var(--card);border-radius:6px}.msg.err{border-color:var(--bad)}
 code.pw{font-size:1.2rem;user-select:all;word-break:break-all}hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+fieldset.access{border:1px solid var(--line);border-radius:8px;margin:12px 0;padding:8px 12px}legend{font-weight:600;padding:0 4px}
+label.sw{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;color:var(--fg);font-size:.95rem;margin:.5em 0}label.sw .mut{font-size:.85rem;flex-basis:100%;margin-left:26px;margin-top:-4px}
+.apps{border-top:1px solid var(--line);margin-top:6px;padding-top:4px}form.quick{display:inline}form.quick button{font-size:.85rem;padding:5px 10px}
 """
 
 
@@ -104,6 +132,20 @@ def render(me, tok, notice=None):
         h.append("<div class='msg %s'>%s</div>" % ("err" if kind == "err" else "", text))
     t = "<input type=hidden name=csrf value='%s'>" % tok
 
+    def access_fields(groups, is_me=False):
+        admin = "admins" in groups
+        rows = ["<fieldset class=access><legend>What can they open?</legend>",
+                "<label class=sw><input type=checkbox name=admin%s%s> <b>Administrator</b>"
+                "<span class=mut>Opens everything, including %s.</span></label>" % (
+                    " checked" if admin else "", " disabled" if is_me else "", E_(", ".join(admin_only_names()))),
+                ("<input type=hidden name=admin value=on>" if is_me else ""),
+                "<div class=apps>"]
+        for a in grantable_apps():
+            rows.append("<label class=sw><input type=checkbox name='app-%s'%s> %s<span class=mut>%s</span></label>" % (
+                E_(a["key"]), " checked" if ("app-" + a["key"]) in groups else "", E_(a["name"]), E_(a.get("description", ""))))
+        rows.append("</div><p class=mut>Administrators can open every app even when its switch is off.</p></fieldset>")
+        return "".join(rows)
+
     def pwfields():
         return ("<label>New password (leave empty to keep it)</label><input type=password name=password autocomplete=new-password>"
                 "<label><input type=checkbox name=generate> Make one up for me, and show it to me once</label>")
@@ -111,30 +153,34 @@ def render(me, tok, notice=None):
              "<label>Username (lowercase letters, digits, . _ -)</label><input type=text name=username required pattern='[a-z0-9][a-z0-9._-]{0,31}'>"
              "<label>Name</label><input type=text name=displayname required>"
              "<label>Email</label><input type=email name=email required>"
-             "<label>Groups (separated by commas)</label><input type=text name=groups placeholder='admins'>%s"
-             "<button class=p>Add person</button></form></details>" % (t, pwfields()))
+             "%s%s"
+             "<button class=p>Add person</button></form></details>" % (t, access_fields([]), pwfields()))
     for name, u in sorted(users.items()):
         u = u or {}
         on = not u.get("disabled")
         groups = u.get("groups") or []
         me_ = name == me
-        tags = "".join("<span class=tag>%s</span>" % E_(g) for g in groups)
+        tags = "<span class=mut>Can open:</span> %s" % E_(access_summary(groups))
         h.append("<div class=card><b>%s</b> %s%s<div>%s</div><div class=mut>%s</div>" % (
             E_(name), "" if on else "<span class=off>(switched off)</span>", " <span class=mut>(you)</span>" if me_ else "",
             E_(str(u.get("displayname", ""))), E_(str(u.get("email", "")))))
-        h.append("<div>%s</div><details><summary class=mut>Change</summary>" % (tags or "<span class=mut>no groups</span>"))
+        h.append("<div>%s</div>" % tags)
+        if "admins" not in groups:
+            h.append("<form method=post action=/access class=quick>%s<input type=hidden name=username value='%s'>"
+                     "<button name=preset value=all>Allow all apps</button><button name=preset value=none>Allow no apps</button></form>" % (t, E_(name)))
+        h.append("<details><summary class=mut>Change</summary>")
         h.append("<form method=post action=/edit>%s<input type=hidden name=username value='%s'>"
                  "<label>Name</label><input type=text name=displayname value='%s' required>"
                  "<label>Email</label><input type=email name=email value='%s' required>"
-                 "<label>Groups (separated by commas)</label><input type=text name=groups value='%s'>%s"
+                 "%s%s"
                  "<button class=p>Save changes</button></form>" % (
-                     t, E_(name), E_(str(u.get("displayname", ""))), E_(str(u.get("email", ""))), E_(", ".join(groups)), pwfields()))
+                     t, E_(name), E_(str(u.get("displayname", ""))), E_(str(u.get("email", ""))), access_fields(groups, me_), pwfields()))
         if not me_:
             h.append("<hr><form method=post action=/toggle style=display:inline>%s<input type=hidden name=username value='%s'><button>%s</button></form>"
                      "<form method=post action=/delete style=display:inline onsubmit=\"return confirm('Remove %s for good?')\">%s<input type=hidden name=username value='%s'><button class=d>Remove</button></form>" % (
                          t, E_(name), "Let them sign in again" if not on else "Switch off", E_(name), t, E_(name)))
         else:
-            h.append("<p class=mut>You can't switch yourself off, remove yourself or leave the admins group.</p>")
+            h.append("<p class=mut>You can't switch yourself off, remove yourself or stop being an administrator.</p>")
         h.append("</details></div>")
     return page("".join(h))
 
@@ -203,7 +249,7 @@ class H(BaseHTTPRequestHandler):
             if name in users:
                 return ("err", "Someone with that username already exists.")
             u = {"disabled": False}
-        elif op in ("edit", "toggle", "delete"):
+        elif op in ("edit", "toggle", "delete", "access"):
             if name not in users:
                 return ("err", "That person no longer exists.")
             u = users[name] or {}
@@ -214,14 +260,23 @@ class H(BaseHTTPRequestHandler):
         if op == "delete":
             del users[name]; save(data)
             return ("ok", "Removed %s." % E_(name))
+        if op == "access":
+            keys = [a["key"] for a in grantable_apps()]
+            old = u.get("groups") or []
+            if "admins" in old:
+                return ("err", "%s is an administrator and can already open everything." % E_(name))
+            fields = {"app-" + k: "on" for k in keys} if f.get("preset") == "all" else {}
+            u["groups"] = groups_from_form(fields, old); users[name] = u; save(data)
+            return ("ok", "%s can now open %s." % (E_(name), "every app" if fields else "no apps"))
         if op == "toggle":
             u["disabled"] = not u.get("disabled"); users[name] = u; save(data)
             return ("ok", "%s is %s." % (E_(name), "switched off" if u["disabled"] else "allowed to sign in again"))
-        dn, em, groups = f.get("displayname", "").strip(), f.get("email", "").strip(), parse_groups(f.get("groups"))
+        dn, em = f.get("displayname", "").strip(), f.get("email", "").strip()
+        groups = groups_from_form(f, (u.get("groups") or []) if op == "edit" else [])
         if not dn or not EMAIL_RE.match(em):
             return ("err", "Please give a name and a valid email address.")
         if name == me and "admins" not in groups:
-            return ("err", "You can't take yourself out of the admins group.")
+            return ("err", "You can't stop being an administrator yourself.")
         pw, shown = f.get("password", ""), None
         if f.get("generate"):
             pw = shown = make_password()

@@ -10,6 +10,7 @@ services:
       PORTAL_URL: https://auth.raph.io
     volumes:
       - /home/sagan/authelia/data:/data
+      - ../apps.yml:/app/apps.yml:ro
     networks: [tinycloud-main]
 networks:
   tinycloud-main:

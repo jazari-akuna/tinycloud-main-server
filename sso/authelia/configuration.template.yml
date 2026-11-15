@@ -1,0 +1,95 @@
+# Template: edit this, then run render.py to produce configuration.yml.
+# Authelia: one sign-in for every site behind the proxy.
+# No secrets live here: they are read from /data on the server (see ../README.md).
+server:
+  address: 'tcp://:9091'
+log:
+  level: 'info'
+theme: 'auto'
+totp:
+  issuer: 'raph.io'
+authentication_backend:
+  password_reset:
+    disable: true
+  file:
+    path: '/data/users.yml'
+    watch: true
+    password:
+      algorithm: 'argon2'
+access_control:
+  default_policy: 'deny'
+  rules:
+    # Always reachable: webhooks, forms and the hub's API (they check their own tokens).
+    - domain: 'n8n-alex.raph.io'
+      resources: ['^/(webhook|webhook-test|webhook-waiting|form|form-test|form-waiting)/.*']
+      policy: 'bypass'
+    - domain: ['p.raph.io', 'portainer.numbers-labs.com']
+      resources: ['^/api/(stacks/)?webhooks/.*']
+      policy: 'bypass'
+    - domain: 'hub.raph.io'
+      resources: ['^/api/v1/.*']
+      policy: 'bypass'
+    # @APP_RULES@ (generated from ../apps.yml by render.py)
+session:
+  cookies:
+    - domain: 'raph.io'
+      authelia_url: 'https://auth.raph.io'
+      default_redirection_url: 'https://c.raph.io'
+    - domain: 'numbers-labs.com'
+      authelia_url: 'https://auth.numbers-labs.com'
+  expiration: '12h'
+  inactivity: '4h'
+  remember_me: '1M'
+regulation:
+  max_retries: 5
+  find_time: '10m'
+  ban_time: '1h'
+storage:
+  local:
+    path: '/data/db.sqlite3'
+notifier:
+  filesystem:
+    filename: '/data/notification.txt'
+identity_providers:
+  oidc:
+    # @OIDC_POLICIES@ (generated from ../apps.yml by render.py)
+    jwks:
+      - key: {{ secret "/data/secrets/oidc.pem" | mindent 10 "|" | msquote }}
+    clients:
+      - client_id: 'nextcloud'
+        client_name: 'Nextcloud'
+        client_secret: {{ secret "/data/secrets/client-nextcloud.hash" | msquote }}
+        public: false
+        authorization_policy: 'nextcloud'
+        consent_mode: 'implicit'
+        require_pkce: false
+        redirect_uris:
+          - 'https://c.raph.io/apps/user_oidc/code'
+          - 'https://cloud.numbers-labs.com/apps/user_oidc/code'
+          - 'https://cloud.numberslabs.com/apps/user_oidc/code'
+        scopes: ['openid', 'profile', 'email', 'groups']
+        userinfo_signed_response_alg: 'none'
+        token_endpoint_auth_method: 'client_secret_post'
+      - client_id: 'jellyfin'
+        client_name: 'Jellyfin'
+        client_secret: {{ secret "/data/secrets/client-jellyfin.hash" | msquote }}
+        public: false
+        authorization_policy: 'jellyfin'
+        consent_mode: 'implicit'
+        require_pkce: false
+        redirect_uris:
+          - 'https://stream.raph.io/sso/OID/redirect/authelia'
+          - 'https://stream.numbers-labs.com/sso/OID/redirect/authelia'
+        scopes: ['openid', 'profile', 'groups']
+        userinfo_signed_response_alg: 'none'
+        token_endpoint_auth_method: 'client_secret_post'
+      - client_id: 'portainer'
+        client_name: 'Portainer'
+        client_secret: {{ secret "/data/secrets/client-portainer.hash" | msquote }}
+        public: false
+        authorization_policy: 'portainer'
+        consent_mode: 'implicit'
+        redirect_uris: ['https://p.raph.io', 'https://portainer.numbers-labs.com']
+        scopes: ['openid', 'profile', 'groups', 'email']
+        userinfo_signed_response_alg: 'none'
+        token_endpoint_auth_method: 'client_secret_post'

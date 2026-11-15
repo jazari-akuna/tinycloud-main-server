@@ -86,7 +86,7 @@ function serviceTile(s) {
         el("span", { class: "dot " + (s.up ? "up" : "down"), title: status }), s.name),
       s.description ? el("div", { class: "t-desc", text: s.description }) : null,
       el("div", { class: "t-meta", text: s.domain + " · " + status })),
-    el("button", { class: "edit", type: "button", "aria-label": `Edit ${s.name}`, text: "Edit", onclick: () => editService(s) }));
+    DATA.admin ? el("button", { class: "edit", type: "button", "aria-label": `Edit ${s.name}`, text: "Edit", onclick: () => editService(s) }) : null);
 }
 
 function renderServices(list) {
@@ -108,7 +108,7 @@ function linkTile(l) {
       el("a", { class: "t-name", href: l.url, target: "_blank", rel: "noopener", text: l.name }),
       l.description ? el("div", { class: "t-desc", text: l.description }) : null,
       el("div", { class: "t-meta", text: host })),
-    el("button", { class: "edit", type: "button", "aria-label": `Edit ${l.name}`, text: "Edit", onclick: () => openLinkForm(l) }));
+    DATA.admin ? el("button", { class: "edit", type: "button", "aria-label": `Edit ${l.name}`, text: "Edit", onclick: () => openLinkForm(l) }) : null);
 }
 
 function renderLinks(links) {
@@ -171,11 +171,13 @@ async function load() {
     $("#footer").textContent = "Can't reach the hub right now. It will try again shortly.";
     return;
   }
-  renderHost(DATA.host, DATA.updates);
+  // People who aren't administrators see their apps and the shared links only.
+  for (const id of ["#meters", "#chips", "#apps-block", "#containers-block"]) $(id).hidden = !DATA.admin;
+  $("#add-link").hidden = !DATA.admin;
+  if (DATA.admin) renderHost(DATA.host, DATA.updates);
   renderServices(DATA.services || []);
   renderLinks(DATA.links || []);
-  renderApps(DATA.apps || {});
-  renderContainers(DATA.containers);
+  if (DATA.admin) { renderApps(DATA.apps || {}); renderContainers(DATA.containers); }
   $("#footer").textContent = `Figures updated ${ago(DATA.generated)}. They refresh every minute while this page is open, and much less often otherwise.`;
 }
 

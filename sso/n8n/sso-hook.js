@@ -6,7 +6,8 @@
 const { createRequire } = require('module');
 
 const AUTHELIA = process.env.SSO_AUTHELIA_URL || 'http://authelia:9091';
-const ALLOWED = (process.env.SSO_ALLOWED_USERS || 'sagan')
+// '*' = anyone Authelia lets in for this address (who may is set on the people page).
+const ALLOWED = (process.env.SSO_ALLOWED_USERS || '*')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
@@ -40,7 +41,7 @@ async function autheliaUser(req, session) {
   });
   if (res.status !== 200) return null;
   const user = res.headers.get('remote-user');
-  return user && ALLOWED.includes(user) ? user : null;
+  return user && (ALLOWED.includes('*') || ALLOWED.includes(user)) ? user : null;
 }
 
 module.exports = {

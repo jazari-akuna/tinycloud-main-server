@@ -1,4 +1,5 @@
 FROM python:3.13-slim
+RUN pip install --no-cache-dir PyYAML==6.0.2
 WORKDIR /app
 COPY app.py ./
 COPY static ./static

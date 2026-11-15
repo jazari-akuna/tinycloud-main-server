@@ -18,7 +18,7 @@ function sso_authelia_is_valid_user($pre) {
     if ($session === '' || preg_match('/[\s;]/', $session)) return $pre;
 
     $authelia = getenv('SSO_AUTHELIA_URL') ?: 'http://authelia:9091';
-    $allowed = array_filter(array_map('trim', explode(',', getenv('SSO_ALLOWED_USERS') ?: 'sagan')));
+    $allowed = array_filter(array_map('trim', explode(',', getenv('SSO_ALLOWED_USERS') ?: '*')));
     $host = preg_replace('/[^A-Za-z0-9.\-:]/', '', $_SERVER['HTTP_HOST'] ?? '');
     $uri = $_SERVER['REQUEST_URI'] ?? '/admin/';
 
@@ -41,7 +41,7 @@ function sso_authelia_is_valid_user($pre) {
     if (!$headers || !preg_match('#^HTTP/\S+\s+200#', $headers[0])) return $pre;
 
     foreach ($headers as $line) {
-        if (preg_match('/^remote-user:\s*(\S+)/i', $line, $m) && in_array($m[1], $allowed, true)) {
+        if (preg_match('/^remote-user:\s*(\S+)/i', $line, $m) && (in_array('*', $allowed, true) || in_array($m[1], $allowed, true))) {
             yourls_set_user($m[1]);
             return true;
         }
