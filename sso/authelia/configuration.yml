@@ -52,6 +52,9 @@ access_control:
       - ['group:app-shortlinks']
       policy: one_factor
     - domain: [s.raph.io]
+      resources: ['^/admin([/?].*)?$']
+      policy: deny
+    - domain: [s.raph.io]
       policy: bypass
     - domain: [makercam.raph.io]
       subject:

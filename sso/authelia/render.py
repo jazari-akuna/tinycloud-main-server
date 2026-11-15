@@ -32,7 +32,10 @@ def main():
         rule["subject"] = subject(app)
         rule["policy"] = "one_factor"
         rules.append(rule)
-        if app.get("paths"):  # the rest of the site stays public
+        if app.get("paths"):
+            # Authelia skips a rule whose group doesn't match, so close those addresses to everyone else
+            # before the rest of the site is made public.
+            rules.append({"domain": list(app["domains"]), "resources": list(app["paths"]), "policy": "deny"})
             rules.append({"domain": list(app["domains"]), "policy": "bypass"})
         if app.get("sign_in") == "openid":
             policies[app["key"]] = {"default_policy": "deny",
