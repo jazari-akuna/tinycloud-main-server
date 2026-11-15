@@ -51,7 +51,11 @@ def apps():
 
 
 def can_open(app, groups):
-    if "admins" in groups or not app or app.get("access") == "open":
+    if "admins" in groups:
+        return True
+    if not app:  # a site that isn't in the shared list yet: administrators only
+        return False
+    if app.get("access") == "open":
         return True
     return app.get("access") == "app" and ("app-" + app["key"]) in groups
 
