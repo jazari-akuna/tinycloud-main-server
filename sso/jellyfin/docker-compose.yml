@@ -1,0 +1,21 @@
+services:
+  jellyfin-sso:
+    build: .
+    container_name: jellyfin-sso
+    restart: unless-stopped
+    environment:
+      AUTHELIA_URL: http://authelia:9091
+      JELLYFIN_URL: http://jellyfin:8096
+      PUBLIC_URL: https://stream.raph.io
+      PORTAL_URL: https://auth.raph.io
+    volumes:
+      # Jellyfin API key, made on the server and never committed (see ../README.md)
+      - /home/sagan/jellyfin-sso/api-key:/run/secrets/jellyfin-api-key:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    networks: [tinycloud-main]
+networks:
+  tinycloud-main:
+    external: true

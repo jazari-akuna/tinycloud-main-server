@@ -9,7 +9,7 @@ One Authelia sign-in (https://auth.raph.io) opens every site behind the proxy, w
 | n8n (n8n-alex.raph.io) | `n8n/sso-hook.js`, an n8n external hook that signs you in as the n8n owner. Webhooks and forms stay public. |
 | YOURLS admin (s.raph.io/admin) | `yourls/sso-authelia`, a YOURLS plugin. Short links stay public. |
 | Proxy Manager (rp.raph.io) | `npm/mint-token.sh` makes a 30-day token for its web UI each week, and `nginx/inject.conf` hands it only to browsers that passed the sign-in. |
-| Jellyfin (stream.raph.io) | The SSO-Auth plugin; the login page has a "Sign in with SSO" button. Its own password login stays for TV and phone apps, so this site has no gate. Compose file in `../jellyfin`. |
+| Jellyfin (stream.raph.io) | `jellyfin/`, a small sign-in service: it checks the Authelia session, finds or creates the matching Jellyfin account, and opens a session through Jellyfin's Quick Connect. The web app is behind the sign-in and goes there by itself (`nginx/jellyfin.js`). Password logins are refused at the proxy (`nginx/jellyfin.conf`); TV and phone apps use Quick Connect codes approved on the web. Needs a Jellyfin API key in `/home/sagan/jellyfin-sso/api-key` (not in git). |
 | Camera (makercam.raph.io) | Behind the sign-in; the camera still asks for its own password. |
 | Users (sso.raph.io) | `admin/`, a small page to add people, change groups and set passwords. |
 

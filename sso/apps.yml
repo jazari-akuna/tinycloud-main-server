@@ -22,9 +22,11 @@ apps:
     name: Jellyfin
     description: Films, series and music
     domains: [stream.raph.io, stream.numbers-labs.com]
+    # The web app needs a sign-in; Jellyfin's API stays reachable for TV and phone apps,
+    # which sign in with Quick Connect codes approved on the web (passwords are refused).
+    paths: ['^/$', '^/web([/?].*)?$', '^/sso-login([/?].*)?$']
     icon: jellyfin
     access: app
-    sign_in: openid
 
   - key: n8n
     name: n8n

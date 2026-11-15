@@ -9,6 +9,7 @@ C=${NPM_CONTAINER:-nginx}
 
 docker exec "$C" mkdir -p /data/nginx/custom/sso
 docker cp "$DIR/nginx/portainer.js" "$C:/data/nginx/custom/sso/portainer.js"
+docker cp "$DIR/nginx/jellyfin.js" "$C:/data/nginx/custom/sso/jellyfin.js"
 "$DIR/npm/mint-token.sh"
 
 # A 10-minute API token for the changes below, kept inside the container.
@@ -44,5 +45,6 @@ put n8n-alex.raph.io ""
 put makercam.raph.io ""
 put sso.raph.io ""
 put hub.raph.io ""
+put stream.raph.io jellyfin.js jellyfin.conf
 rm -f /tmp/.sso-hosts.json
 docker exec "$C" rm -f /tmp/.sso-api

@@ -70,19 +70,6 @@ identity_providers:
         scopes: ['openid', 'profile', 'email', 'groups']
         userinfo_signed_response_alg: 'none'
         token_endpoint_auth_method: 'client_secret_post'
-      - client_id: 'jellyfin'
-        client_name: 'Jellyfin'
-        client_secret: {{ secret "/data/secrets/client-jellyfin.hash" | msquote }}
-        public: false
-        authorization_policy: 'jellyfin'
-        consent_mode: 'implicit'
-        require_pkce: false
-        redirect_uris:
-          - 'https://stream.raph.io/sso/OID/redirect/authelia'
-          - 'https://stream.numbers-labs.com/sso/OID/redirect/authelia'
-        scopes: ['openid', 'profile', 'groups']
-        userinfo_signed_response_alg: 'none'
-        token_endpoint_auth_method: 'client_secret_post'
       - client_id: 'portainer'
         client_name: 'Portainer'
         client_secret: {{ secret "/data/secrets/client-portainer.hash" | msquote }}
