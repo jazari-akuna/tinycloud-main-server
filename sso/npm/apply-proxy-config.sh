@@ -24,16 +24,18 @@ JS
 put() {
   id=$1
   script=$2
+  extra=${3:-}
   {
     cat "$DIR/nginx/gate.conf"
     if [ -n "$script" ]; then sed "s/SCRIPT/$script/g" "$DIR/nginx/inject.conf"; fi
+    if [ -n "$extra" ]; then cat "$DIR/nginx/$extra"; fi
   } | python3 -c 'import sys, json; print(json.dumps({"advanced_config": sys.stdin.read()}))' |
     docker exec -i "$C" sh -c 'curl -s -o /dev/null -w "%{http_code}" -X PUT -H "Authorization: Bearer $(cat /tmp/.sso-api)" -H "Content-Type: application/json" --data-binary @- http://127.0.0.1:81/api/nginx/proxy-hosts/'"$id"
   echo " proxy host $id"
 }
 put 2 npm.js
 put 3 portainer.js
-put 6 ""
+put 6 "" yourls-root.conf
 put 8 ""
 put 10 ""
 docker exec "$C" rm -f /tmp/.sso-api
