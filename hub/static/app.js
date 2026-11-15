@@ -34,7 +34,8 @@ const el = (tag, attrs = {}, ...kids) => {
   return e;
 };
 const hue = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
-const badge = (name) => el("span", { class: "mono-badge", text: (name || "?").trim().charAt(0).toUpperCase(),
+const logo = (src) => el("span", { class: "logo" }, el("img", { src, alt: "", loading: "lazy", width: "28", height: "28" }));
+const badge = (name, icon) => icon ? logo(icon) : el("span", { class: "mono-badge", text: (name || "?").trim().charAt(0).toUpperCase(),
   style: `background: hsl(${hue(name || "?")} 42% 42%)` });
 
 function meter(label, value, unit, pct, sub) {
@@ -79,7 +80,7 @@ function renderHost(h, updates) {
 function serviceTile(s) {
   const status = !s.enabled ? "Switched off in the proxy" : s.up ? `Answering · ${s.ms} ms` : s.code ? `Not answering (error ${s.code})` : "Not answering";
   return el("div", { class: "tile" + (s.hidden ? " off" : "") },
-    badge(s.name),
+    badge(s.name, s.icon),
     el("div", {},
       el("a", { class: "t-name", href: s.url, target: "_blank", rel: "noopener" },
         el("span", { class: "dot " + (s.up ? "up" : "down"), title: status }), s.name),
@@ -119,9 +120,9 @@ function fig(k, v, bad) {
   return el("div", { class: "fig" + (bad ? " bad" : "") }, el("div", { class: "v", text: v }), el("div", { class: "k", text: k }));
 }
 
-function appCard(title, url, figs, note) {
+function appCard(title, url, figs, note, icon) {
   return el("div", { class: "app" },
-    el("div", { class: "app-head" }, el("h3", { text: title }), url ? el("a", { class: "small", href: url, target: "_blank", rel: "noopener", text: "Open" }) : null),
+    el("div", { class: "app-head" }, el("h3", {}, icon ? el("img", { class: "app-logo", src: "/icons/" + icon + ".svg", alt: "" }) : null, title), url ? el("a", { class: "small", href: url, target: "_blank", rel: "noopener", text: "Open" }) : null),
     el("div", { class: "figs" }, ...figs),
     note ? el("p", { class: "muted small", style: "margin:0", text: note }) : null);
 }
@@ -131,22 +132,22 @@ function renderApps(a) {
   const ok = (x) => x && !x.error;
   if (ok(a.nextcloud)) cards.push(appCard("Nextcloud", "https://c.raph.io/", [
     fig("people", fmtNum(a.nextcloud.users)), fig("files", fmtNum(a.nextcloud.files)),
-    fig("active today", fmtNum(a.nextcloud.active_24h)), fig("shared items", fmtNum(a.nextcloud.shares))], `Version ${a.nextcloud.version}`));
+    fig("active today", fmtNum(a.nextcloud.active_24h)), fig("shared items", fmtNum(a.nextcloud.shares))], `Version ${a.nextcloud.version}`, "nextcloud"));
   if (ok(a.jellyfin)) cards.push(appCard("Jellyfin", "https://stream.raph.io/", [
     fig("films", fmtNum(a.jellyfin.movies)), fig("series", fmtNum(a.jellyfin.series)),
-    fig("episodes", fmtNum(a.jellyfin.episodes)), fig("songs", fmtNum(a.jellyfin.songs))]));
+    fig("episodes", fmtNum(a.jellyfin.episodes)), fig("songs", fmtNum(a.jellyfin.songs))], null, "jellyfin"));
   if (ok(a.n8n)) cards.push(appCard("n8n", "https://n8n-alex.raph.io/", [
     fig("workflows", fmtNum(a.n8n.workflows)), fig("switched on", fmtNum(a.n8n.active)),
-    fig("runs today", fmtNum(a.n8n.runs_24h)), fig("failed today", fmtNum(a.n8n.failed_24h), a.n8n.failed_24h > 0)]));
+    fig("runs today", fmtNum(a.n8n.runs_24h)), fig("failed today", fmtNum(a.n8n.failed_24h), a.n8n.failed_24h > 0)], null, "n8n"));
   if (ok(a.yourls)) cards.push(appCard("Short links", "https://s.raph.io/admin/", [
-    fig("links", fmtNum(a.yourls.links)), fig("clicks", fmtNum(a.yourls.clicks))]));
+    fig("links", fmtNum(a.yourls.links)), fig("clicks", fmtNum(a.yourls.clicks))], null, "yourls"));
   if (ok(a.authelia)) cards.push(appCard("Sign-in", "https://sso.raph.io/", [
     fig("people", fmtNum(a.authelia.enabled)), fig("sign-ins today", fmtNum(a.authelia.signins_24h)),
-    fig("wrong passwords today", fmtNum(a.authelia.failed_24h), a.authelia.failed_24h > 0)]));
+    fig("wrong passwords today", fmtNum(a.authelia.failed_24h), a.authelia.failed_24h > 0)], null, "authelia"));
   if (ok(a.proxy) && a.proxy.cert_expires) {
     const days = Math.round((new Date(a.proxy.cert_expires.replace(" ", "T") + "Z") - Date.now()) / 864e5);
     cards.push(appCard("Certificates", "https://rp.raph.io/", [fig("days left", fmtNum(days), days < 14)],
-      "The proxy renews it automatically before then."));
+      "The proxy renews it automatically before then.", "nginx-proxy-manager"));
   }
   $("#apps").replaceChildren(...(cards.length ? cards : [el("p", { class: "empty", text: "App figures are not in yet." })]));
 }

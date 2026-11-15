@@ -46,6 +46,13 @@ DEFAULTS = {
     "rth.raph.io": ("Camera tunnel", "Rathole control port"),
     "mscamftp.raph.io": ("Camera FTP", "Switched off"),
 }
+ICONS = {
+    "c.raph.io": "nextcloud", "p.raph.io": "portainer", "rp.raph.io": "nginx-proxy-manager", "n8n-alex.raph.io": "n8n",
+    "s.raph.io": "yourls", "stream.raph.io": "jellyfin", "makercam.raph.io": "camera", "sso.raph.io": "authelia",
+    "auth.raph.io": "authelia", "office.raph.io": "collabora-online", "hub.raph.io": "hub", "git.raph.io": "gitlab",
+    "i.raph.io": "inventree", "rth.raph.io": "camera", "mscamftp.raph.io": "camera",
+}
+ICON_RE = re.compile(r"^/icons/[a-z0-9-]+\.svg$")
 HIDDEN_BY_DEFAULT = {"hub.raph.io", "office.raph.io", "rth.raph.io", "mscamftp.raph.io", "auth.raph.io"}
 
 
@@ -124,7 +131,9 @@ def services_view(stats, prefs):
             "key": main, "url": "https://" + main + "/", "domain": main,
             "aliases": [d for d in h["domains"] if d != main],
             "name": p.get("name") or name, "description": p.get("description", desc),
-            "hidden": p.get("hidden", main in HIDDEN_BY_DEFAULT),
+            # Sites that are switched off or not answering stay out of the way until you unhide them.
+            "hidden": p.get("hidden", main in HIDDEN_BY_DEFAULT or not h.get("up") or not h.get("enabled", True)),
+            "icon": "/icons/%s.svg" % ICONS[main] if main in ICONS else None,
             "up": h.get("up"), "code": h.get("code"), "ms": h.get("ms"), "enabled": h.get("enabled", True),
         })
     out.sort(key=lambda s: s["name"].lower())
@@ -224,6 +233,9 @@ class Handler(BaseHTTPRequestHandler):
             html = open(os.path.join(STATIC, "index.html")).read()
             html = html.replace("{{CSRF}}", csrf_token(self.headers.get("Cookie"))).replace("{{USER}}", me)
             return self.send(200, html, "text/html; charset=utf-8")
+        if ICON_RE.match(path) and os.path.exists(os.path.join(STATIC, path[1:])):
+            return self.send(200, open(os.path.join(STATIC, path[1:]), "rb").read(), "image/svg+xml",
+                             extra=[("Cache-Control", "max-age=86400")])
         if path in ("/app.js", "/style.css"):
             ctype = "text/javascript; charset=utf-8" if path.endswith(".js") else "text/css; charset=utf-8"
             return self.send(200, open(os.path.join(STATIC, path[1:]), "rb").read(), ctype)

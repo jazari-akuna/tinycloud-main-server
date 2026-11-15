@@ -2,7 +2,7 @@
 :root {
   --bg: #eef1f0; --surface: #ffffff; --surface-2: #f6f8f7; --fg: #172022; --muted: #5b6a6e; --line: #d9e0df;
   --accent: #2a6f97; --accent-soft: #dcebf4; --up: #2f8a57; --warn: #b7791f; --down: #c2412d;
-  --track: #e2e8e7;
+  --track: #e2e8e7; --logo-bg: #ffffff;
   --display: "Space Grotesk", "Avenir Next", system-ui, sans-serif;
   --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -10,11 +10,11 @@
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0f1416; --surface: #161d20; --surface-2: #1b2327; --fg: #e3eaeb; --muted: #93a3a7; --line: #283236;
-  --accent: #74b4da; --accent-soft: #1d3442; --up: #5cc488; --warn: #e2a74a; --down: #ef7a64; --track: #24302f;
+  --accent: #74b4da; --accent-soft: #1d3442; --up: #5cc488; --warn: #e2a74a; --down: #ef7a64; --track: #24302f; --logo-bg: #e9eef0;
   color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #0f1416; --surface: #161d20; --surface-2: #1b2327; --fg: #e3eaeb; --muted: #93a3a7; --line: #283236;
-  --accent: #74b4da; --accent-soft: #1d3442; --up: #5cc488; --warn: #e2a74a; --down: #ef7a64; --track: #24302f;
+  --accent: #74b4da; --accent-soft: #1d3442; --up: #5cc488; --warn: #e2a74a; --down: #ef7a64; --track: #24302f; --logo-bg: #e9eef0;
   color-scheme: dark; }
 
 * { box-sizing: border-box; }
@@ -68,9 +68,19 @@ a { color: var(--accent); }
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
   color: inherit; text-decoration: none; min-width: 0; transition: border-color .15s, transform .15s; }
 .tile:hover { border-color: var(--accent); transform: translateY(-1px); }
+.tile { cursor: pointer; user-select: none; -webkit-user-select: none; }
+/* The name's link covers the whole tile, so a click anywhere opens the service; Edit sits above it. */
+.tile .t-name::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius); }
+.tile:has(.t-name:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tile .t-name:focus-visible { outline: none; }
+.edit { z-index: 1; }
 .tile.off { opacity: .55; }
 .mono-badge { width: 42px; height: 42px; border-radius: 9px; display: grid; place-items: center;
   font: 600 18px var(--display); color: #fff; }
+.logo { width: 42px; height: 42px; border-radius: 9px; display: grid; place-items: center; background: var(--logo-bg); border: 1px solid var(--line); }
+.logo img { width: 28px; height: 28px; object-fit: contain; }
+.app-head h3 { display: flex; align-items: center; gap: 8px; }
+.app-logo { width: 20px; height: 20px; object-fit: contain; }
 .tile .t-name { font: 600 16px var(--display); display: flex; align-items: center; gap: 8px; color: var(--fg); text-decoration: none; }
 .tile .t-name:hover { color: var(--accent); }
 .tile .t-desc { font-size: 13px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
