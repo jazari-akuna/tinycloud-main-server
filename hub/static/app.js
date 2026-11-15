@@ -77,6 +77,20 @@ function renderHost(h, updates) {
   for (const [t, cls] of chips) c.append(el("span", { class: "chip " + cls, text: t }));
 }
 
+function renderMaintenance(m) {
+  if (!m) return;
+  const when = new Date(m.when).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const n = (m.updated || []).length;
+  let text = `Weekly update ${when}: ${n ? n + " updated" : "nothing to update"}, `;
+  let cls = "good";
+  if (m.passed) text += m.repair && m.repair.startsWith("repaired") ? "fixed by Claude, all checks pass" : `all ${m.checks} checks pass`;
+  else { text += `${m.failed.length} check${m.failed.length > 1 ? "s" : ""} failing`; cls = "warn"; }
+  const chip = el("span", { class: "chip " + cls, text, title: [
+    ...(m.failed || []).map((f) => "Failing: " + f.check + (f.detail ? " (" + f.detail + ")" : "")),
+    m.repair && m.repair !== "not needed" ? "Repair: " + m.repair : "", ...(m.notes || [])].filter(Boolean).join("\n") || "Full log on the server: " + m.log });
+  $("#chips").prepend(chip);
+}
+
 function serviceTile(s) {
   const status = !s.enabled ? "Switched off in the proxy" : s.up ? `Answering · ${s.ms} ms` : s.code ? `Not answering (error ${s.code})` : "Not answering";
   return el("div", { class: "tile" + (s.hidden ? " off" : "") },
@@ -174,7 +188,7 @@ async function load() {
   // People who aren't administrators see their apps and the shared links only.
   for (const id of ["#meters", "#chips", "#apps-block", "#containers-block"]) $(id).hidden = !DATA.admin;
   $("#add-link").hidden = !DATA.admin;
-  if (DATA.admin) renderHost(DATA.host, DATA.updates);
+  if (DATA.admin) { renderHost(DATA.host, DATA.updates); renderMaintenance(DATA.maintenance); }
   renderServices(DATA.services || []);
   renderLinks(DATA.links || []);
   if (DATA.admin) { renderApps(DATA.apps || {}); renderContainers(DATA.containers); }

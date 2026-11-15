@@ -365,6 +365,7 @@ class Handler(BaseHTTPRequestHandler):
                 "host": stats.get("host") if admin else None, "containers": stats.get("containers") if admin else None,
                 "apps": {k: stats.get(k) for k in ("nextcloud", "jellyfin", "n8n", "yourls", "authelia", "proxy")} if admin else {},
                 "updates": (stats.get("updates") or {}).get("count") if admin else None,
+                "maintenance": read_json("maintenance.json", None) if admin else None,
                 "services": services_view(stats, links.get("services", {}), me[1]),
                 "links": links.get("links", []),
             }))

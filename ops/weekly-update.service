@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly update of the server's apps, with health checks and automatic repair
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/sagan/tinycloud-main-server/ops/weekly-update.sh
+TimeoutStartSec=3h
+Nice=10
